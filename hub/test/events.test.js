@@ -82,6 +82,32 @@ test('full-read missing identity/permission/window/grant, stale or nonblocked re
   x.source.notify(); await x.listener.idle();
   assert.equal(x.calls.length, 0); assert.equal(x.store.pending(x.home), null);
 });
+test('incomplete current quota cannot wait on a different account with a valid reset', async t => {
+  const x = setup(t);
+  x.store.register({ accountId: 'b', authorized: true, authState: 'ready', authRef: 'fixture-b',
+    grants: [{ project: 'toolrig', model: 'fixed', requiredBuckets: ['codex'] }] });
+  x.service.observe(x.raw({ accountId: 'b' }));
+  await x.listener.start();
+  for (const rateLimits of [
+    { limitId: 'other', primary: { usedPercent: 100, resetsAt: now / 1000 + 600 } },
+    { limitId: 'codex', primary: null },
+    { limitId: 'codex', primary: { usedPercent: null } },
+    { limitId: 'codex', primary: { usedPercent: 101 } },
+    { limitId: 'codex', primary: { usedPercent: 100, resetsAt: now / 1000 + 600 }, secondary: { usedPercent: null } },
+    { limitId: 'codex', primary: { usedPercent: 100, resetsAt: now / 1000 + 600 }, individualLimit: { remainingPercent: null } },
+  ]) {
+    x.source.read = async () => x.raw({ rateLimits });
+    x.source.notify(); await x.listener.idle();
+    assert.equal(x.calls.length, 0);
+    assert.equal(x.store.pending(x.home), null);
+    assert.equal(x.results.at(-1).reason, 'provider_block_unconfirmed');
+  }
+  x.store.register({ accountId: 'a', authorized: true, authState: 'ready', authRef: 'fixture-a',
+    grants: [{ project: 'toolrig', model: 'fixed', requiredBuckets: ['codex', 'missing-required'] }] });
+  x.source.read = async () => x.raw();
+  x.source.notify(); await x.listener.idle();
+  assert.equal(x.calls.length, 0); assert.equal(x.store.pending(x.home), null);
+});
 test('notification arriving during full read invalidates its snapshot before wake', async t => {
   const x = setup(t); const read = deferred(); let first = true;
   x.source.read = () => first ? (first = false, read.promise) : x.raw({ ordinaryUsageAllowed: true });

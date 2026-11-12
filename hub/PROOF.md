@@ -93,9 +93,22 @@ Implemented event invalidation -> full read -> confirmed provider-blocked policy
 -> existing operation/owned-qitem wake adapter. Connection/read failure requires
 an explicit reconnect; no polling loop or production timer was installed.
 
-npm test on Node24.22.1/macOS: 34 passed (24 original + ten event fixtures).
+Initial event candidate npm test on Node24.22.1/macOS: 34 passed (24 original + ten event fixtures).
 Fixtures include actual stdio protocol transport with a fake provider and native
 queue runner; no live provider event or park is implied. Evidence and exact
 limits are [EVENTS.md](EVENTS.md). Independent review and new exact-SHA CI are
 pending for this increment. Native-seat account/stream binding, production wake
 and useful continuation remain NOT RUN; no full READY publication.
+
+## Event review correction
+
+Reviewer found that ordinaryUsageAllowed=false could authorize the event path
+with missing current required quota details if another permitted account had a
+valid reset. A two-account regression reproduced native fixture show/block calls
+instead of no wake. Confirmation now requires each current required bucket to
+have observed windows and every returned window/individual-limit percentage to
+be known and in range. The added fixture covers missing bucket/window, unknown
+or invalid percentage, missing additional required bucket and another account's
+valid reset. It fails on e6b157c and passes after correction; all 35 tests passed
+on Node24/macOS. Global quota policy/status and the live/production boundaries
+remain unchanged. Re-review of this bounded correction is pending.

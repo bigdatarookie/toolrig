@@ -33,6 +33,11 @@ any native wake call. Missing/unknown/stale, nonblocked, unsupported and resetle
 results cannot arm. An available alternative produces pending native precheck,
 with no auth/retarget/restart execution or reset timer.
 
+Before event routing, every current required bucket must contain an observed
+window, and all observed window/individual-limit percentages must be known and
+within 0–100. An explicit provider denial alone cannot substitute for missing
+current quota details, even if another account has a confirmed reset.
+
 The existing operation retains native continuation/cohort references. Repeated
 events and multiple listeners join its ID. A saved decision with a different
 target/reset is retained for revalidation, not silently overwritten or armed.
@@ -80,11 +85,12 @@ a separate observer process is not presented as a working cohort event feed.
 
 ## Verification boundary
 
-34 author tests pass on Node24/macOS, including ten new event fixtures: sparse
+35 author tests pass on Node24/macOS, including eleven new event fixtures: sparse
 and out-of-order data, duplicate/coalesced events, missing identity/permission/
 window/reset/grant, stale/nonblocked reads, in-flight invalidation, bounded churn,
 read failure with explicit reconnect, disconnect generation, revalidation before
-park, unknown-effect reconciliation, two-listener idempotency, and a real stdio
+park, unknown-effect reconciliation, two-listener idempotency, incomplete current
+quota with another account's valid reset, and a real stdio
 fixture process exercising the public JSON-RPC transport. Existing MCP discovery,
 status/read, quota policy, native wake and persistence tests still pass.
 

@@ -25,7 +25,17 @@ export class AvailabilityService {
   confirmedProviderBlock(snapshot) {
     const entry = this.store.entries().find(e => e.accountId === snapshot.accountId);
     const grant = entry?.grants.find(g => g.project === this.project && g.model === this.model);
-    return snapshot.ordinaryUsageAllowed === false &&
+    const knownPercent = w => typeof w.remainingPercent === 'number' &&
+      Number.isFinite(w.remainingPercent) && w.remainingPercent >= 0 && w.remainingPercent <= 100;
+    // Policy may know the provider denied usage while quota details are unknown.
+    // The event-to-park boundary requires all current required buckets/windows
+    // before a different account's confirmed reset can justify a durable wait.
+    const knownQuota = grant?.requiredBuckets.length && grant.requiredBuckets.every(id => {
+      const bucket = snapshot.buckets[id];
+      return bucket?.windows.length > 0 && bucket.windows.every(knownPercent) &&
+        (!bucket.individualLimit || knownPercent(bucket.individualLimit));
+    });
+    return Boolean(knownQuota) && snapshot.ordinaryUsageAllowed === false &&
       availability(snapshot, grant?.requiredBuckets, this.clock()).state === 'blocked';
   }
   requestFromSnapshot(context, status, { providerLimit = false } = {}) {
