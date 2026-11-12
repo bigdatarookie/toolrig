@@ -1,6 +1,15 @@
 import json
+from pathlib import Path
+import sys
 import unittest
 from unittest import mock
+
+# Pytest's prepend import mode can put only `tests/` on sys.path for this
+# standalone suite. Resolve the repository root from the test file so imports
+# work under both `uv run pytest` and unittest discovery.
+REPO_ROOT = str(Path(__file__).resolve().parents[1])
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 from scripts import opentour_crm_lifecycle as lifecycle
 
