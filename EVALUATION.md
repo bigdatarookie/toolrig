@@ -1,5 +1,16 @@
 # Toolrig: приёмка и эффект
 
+## v02
+
+Availability: read-only наблюдение реального provider account/windows с timestamps; тест policy remaining<=5/0 и multi-window на fixtures без искусственного исчерпания. Один разрешённый canary подтверждает поддерживаемую смену и сохранение conversation/qitem/config/permissions, фактический аккаунт и следующий tool turn. Проверить concurrent requests/shared-home isolation, restart pending continuation, unavailable alternative→до0→ближайшийreset→wake→полезное продолжение. Fixtures не доказывают live switch; не израсходовать quota ради проверки и не рестартовать чужие active seats. Если второго предоставленного аккаунта нет, live switch NOT RUN с точным gap, остальные функции не блокируются. Отдельного capacity seat нет.
+
+OpenBao: закреплённое воспроизводимое развёртывание, durable storage, изолированные init/unseal/restart/backup-restore, разрешённая выдача/отказ чужому consumer/отзыв, отсутствие secret values в reports/logs и один реальный scoped consumer через reference. Live consumer не подменяется mock, test secret не объявляется миграцией всех credentials.
+
+Documents: representational fixtures PDF text/scanned/table, DOCX table, XLSX sheets/formulas/cached values, CSV quoting/BOM. Проверить выбор диапазонов, render, source references, явные ошибки, OCR uncertainty и неизменность original. Проверить install/smoke на macOS и Linux; непроверенная платформа NOT RUN. Один реальный агент читает/рендерит нужный документ через Hub; огромный raw output не критерий успеха.
+
+Приёмка не повторяет все старые проверки ради новой записи; affected independent reviewer сохраняет окончательное решение. Метрики availability: time-after-reset до actual useful continuation, предотвратимый downtime отдельно от подтверждённой недоступности, native continuity success, число human interventions. Diagnostic metrics не budgets/новые gates.
+
+
 ## Сквозные критерии
 
 Принимаются независимым назначенным reviewer в affected scope и с реальным потребителем. Merge/тест SDK/наличие MCP tool отдельно не завершает внедрение.
@@ -17,4 +28,4 @@
 
 ## Граница текущей стадии
 
-Запуск команды разрешён, но ни один implementation/consumer/service-migration критерий не считается PASS из существования пакета или работающих seats. Первый принимаемый результат — read-only inventory/reuse plan с конкретным finite consumer successor. Изменение внешних служб, секретов и удалённых хостов требует собственного разрешённого scope и проверки через потребителя.
+Запуск команды разрешён, но ни один implementation/consumer/service-migration критерий не считается PASS из существования пакета или работающих seats. Read-only inventory — начальный исторический этап, не текущий предел мандата. Для v0.2 требуются реализация и consumer эффекты по разделу v02. Изменение внешних служб, секретов и удалённых хостов требует собственного разрешённого scope и проверки через потребителя.

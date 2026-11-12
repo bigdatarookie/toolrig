@@ -1,8 +1,15 @@
 # Toolrig: команда
 
+## v0.2 — Реализация без новой роли
+
+Availability service внутри Tool Hub. Восьмой capacity/subscriptions агент не создаётся. Tools Hub реализует API/учёт/policy; Infrastructure Engineer — runtime/native recovery/wake; Secrets Engineer — безопасную авторизацию и OpenBao. Каждый агент-потребитель вправе вызвать выбор по remaining<=5%/0 в разрешённом пуле без повторного approval. Lead координирует исключения, Support помогает сложным случаям, но обычный вызов исполняется кодом.
+
+Automation Engineer реализует конкретный стек PLATFORM#documents. Secrets Engineer владеет OpenBao/bootstrap/recovery и первым consumer, Infrastructure помогает контейнеру/restore. Один reviewer назначается по компетенции/независимости, не обязательному маршруту через QA. Семь согласованных моделей/effort без изменений. Текущее shared home с OpenTour не разрешение изменить соседние аккаунты/процессы без согласованного безопасного transition.
+
+
 Семь seats, пять Luna и два Sol; локальные модели в составе Toolrig не используются. Пользователи инструментов могут работать на локальных моделях.
 
-Все семь seats запускаются через Codex с общим с OpenTour `CODEX_HOME=/Users/garry/.codex-opentour` и `permission_policy: builtin:yolo`. Общий home разделяет auth/config и usage limits; он не объединяет queue identity, project scope или полномочия ролей.
+Все семь seats запускаются через Codex с общим с OpenTour `CODEX_HOME=/Users/garry/.codex-opentour` и `permission_policy: builtin:yolo`. Общий home разделяет auth/config; квота относится к фактическому аккаунту/workspace, не к пути home; он не объединяет queue identity, project scope или полномочия ролей.
 
 | Logical ID | Модель | Effort | Ответственность |
 |---|---|---|---|
