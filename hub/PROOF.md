@@ -96,9 +96,10 @@ an explicit reconnect; no polling loop or production timer was installed.
 Initial event candidate npm test on Node24.22.1/macOS: 34 passed (24 original + ten event fixtures).
 Fixtures include actual stdio protocol transport with a fake provider and native
 queue runner; no live provider event or park is implied. Evidence and exact
-limits are [EVENTS.md](EVENTS.md). Independent review and new exact-SHA CI are
-pending for this increment. Native-seat account/stream binding, production wake
-and useful continuation remain NOT RUN; no full READY publication.
+limits are [EVENTS.md](EVENTS.md). Independent review accepted the correction
+recorded below; all four exact-SHA macOS/Ubuntu CI checks passed. Native-seat
+account/stream binding, production wake and useful continuation remain NOT RUN;
+no full READY publication.
 
 ## Event review correction
 
@@ -111,4 +112,11 @@ be known and in range. The added fixture covers missing bucket/window, unknown
 or invalid percentage, missing additional required bucket and another account's
 valid reset. It fails on e6b157c and passes after correction; all 35 tests passed
 on Node24/macOS. Global quota policy/status and the live/production boundaries
-remain unchanged. Re-review of this bounded correction is pending.
+remain unchanged. verification.qa accepted exact corrected candidate
+bd041120d446349b9cf0b796322a38090d8d2d80; [PR #6](https://github.com/bigdatarookie/toolrig/pull/6)
+merged at 2026-11-12T17:36:41Z as fb66090ed0f3c21aa286dce8121ebf036ead8fd9.
+GitHub's PR endpoint independently confirmed merged=true and these exact SHAs.
+The reviewer inspected the candidate and all four passing exact-SHA CI checks;
+the author ran the 35-test suite, and the reviewer did not rerun it. This accepts
+the bounded code/fixture increment, not a live provider/native-seat binding,
+production wake, useful continuation or full availability READY claim.
