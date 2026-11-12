@@ -11,8 +11,18 @@ export class NativeLaunchHooks {
     Object.assign(this, { enabledFor, captureOriginal, runtimeRoot, resolveCodexEntry, entrypoint });
     this.commands = new Map();
   }
+  // The source adapter must call this before legacy config/plugin/directory
+  // preparation. A truthy Promise or unknown selector cannot authorize a launch.
+  isEnabledFor(nodeId) {
+    const selected = this.enabledFor(nodeId);
+    if (typeof selected !== 'boolean') {
+      if (selected && typeof selected.then === 'function') Promise.resolve(selected).catch(() => {});
+      throw new Error('native_selection_invalid');
+    }
+    return selected;
+  }
   async prepareLaunch(binding, name, prepared, opts) {
-    if (!this.enabledFor(binding.nodeId)) return prepared;
+    if (!this.isEnabledFor(binding.nodeId)) return prepared;
     if (!prepared.ok || opts?.installCorePlugin !== false) throw new Error('native_opt_in_requires_resume');
     const prior = await this.captureOriginal(binding, prepared);
     // captureOriginal is the native owner's internal observation boundary, not

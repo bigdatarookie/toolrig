@@ -227,3 +227,12 @@ test('resume denies changed and explicitly cleared captured tier before forwardi
   assert(!f.requests.includes('thread/resume'));
   const { binding } = await f.attach(); await binding; // omission preserves original tier
 });
+
+test('adapter can select native preparation before legacy writes; invalid selection never falls back', () => {
+  assert.equal(new NativeLaunchHooks().isEnabledFor('unselected'), false);
+  const hooks = new NativeLaunchHooks({ enabledFor: nodeId => nodeId === 'selected' });
+  assert.equal(hooks.isEnabledFor('selected'), true);
+  assert.equal(hooks.isEnabledFor('other'), false);
+  assert.throws(() => new NativeLaunchHooks({ enabledFor: () => undefined }).isEnabledFor('selected'), /native_selection_invalid/);
+  assert.throws(() => new NativeLaunchHooks({ enabledFor: () => Promise.reject(new Error('fixture')) }).isEnabledFor('selected'), /native_selection_invalid/);
+});
