@@ -182,3 +182,27 @@ quota or install a scheduler. All 44 tests pass locally after correction. The
 same committed-candidate Support diagnostic remains applicable: its code did
 not change in this readiness correction. Latest exact-SHA CI must be assessed
 by the assigned reviewer before merge; a failed earlier run is not reported green.
+
+## Offline native launch/relay source increment after PR #9
+
+Native hooks, dedicated backend launch, authenticated sole-TUI relay and revocable
+internal verifier are implemented as an opt-in source candidate. No installed
+adapter, daemon, account/home, existing seat or original conversation was changed.
+Author local suite: 54/54; nine new source fixtures cover launch identity,
+original resume, same-backend snapshot/event provenance, denied second owner,
+drift revocation, generation lease and existing reserve/pre-park continuation.
+The first fixture run exposed an incorrect undefined-vs-null assertion after
+revocation; corrected the assertion to the implemented revoked state. No provider
+inference/thread/turn or actual native queue park occurred. Exact baseline patch,
+launch/deployment contract and residual native proofs: NATIVE-LAUNCH.md.
+
+### Independent PR #10 service-tier finding
+
+QA found that the source guard rejected a configured preserved serviceTier from
+Codex 0.166's client-owned remote resume parameters. A transport fixture first
+reproduced revocation instead of binding for captured tier `fast`. The guard now
+accepts omission or exactly the captured value on resume/turn, and denies changed
+values and explicit clearing of a non-null captured tier. The same-source resume
+response and later thread-settings checks still require the captured tier.
+Author recheck: 11/11 focused native launch tests and 56/56 full suite. This
+correction remains offline source proof; no native seat was resumed or migrated.

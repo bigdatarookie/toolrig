@@ -128,3 +128,11 @@ as such. A further account-switch canary still requires a provided compatible
 account; none is invented here. Live seat binding/events, production wake,
 account transition, reset-to-useful-continuation and cohort preservation remain
 NOT RUN/unproven. This is not full availability READY.
+
+## Subsequent offline implementation
+
+The accepted PR #9 design now has an opt-in source candidate in
+[NATIVE-LAUNCH.md](NATIVE-LAUNCH.md), native-hooks/native-runtime and an unapplied
+exact-baseline adapter patch. Its owner relay uses authenticated loopback WS for
+the native TUI and the owned public Unix endpoint for the backend. Source fixture
+results do not upgrade the earlier canary to a live native-seat attachment.
