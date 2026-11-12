@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { configuredService } from './config.js';
+import { configuredDocumentsAdapter, registerDocumentsTools } from './documents.js';
 import { continuation } from './store.js';
 
 const service = configuredService();
@@ -21,5 +22,6 @@ server.registerTool('availability_request', {
   description: 'Evaluate permitted account policy and persist one shared-home pending continuation. Does not execute auth changes or restart seats.',
   inputSchema: { continuation },
 }, call(args => service.request(args.continuation)));
+registerDocumentsTools(server, configuredDocumentsAdapter());
 process.once('SIGTERM', async () => { await server.close(); service.store.close(); process.exit(0); });
 await server.connect(new StdioServerTransport());

@@ -43,6 +43,31 @@ times are explicit UTC, with an Asia/Bangkok rendering. Source usedPercent is
 preserved; remainingPercent is exactly 100 minus usedPercent. These are quota
 windows, not context-window or cumulative token usage.
 
+## Documents MCP adapter
+
+The same stdio Hub can optionally expose the existing Toolrig Documents CLI.
+Set both variables in the Hub launch environment to register the four
+read-only tools `documents_inspect`, `documents_read`, `documents_render`, and
+`documents_extract_tables`:
+
+| Variable | Meaning |
+| --- | --- |
+| TOOLRIG_DOCUMENTS_CLI | Absolute path to the trusted `toolrig-documents` executable |
+| TOOLRIG_DOCUMENTS_ROOT | Absolute directory containing documents the consumer may read |
+| TOOLRIG_DOCUMENT_ARTIFACT_DIR | Optional absolute directory for task-owned output artifacts; defaults to a unique temporary directory |
+
+Each call takes an absolute path under that root. The adapter resolves both
+paths, rejects symlink/path escapes, invokes the CLI without a shell, and
+returns its structured JSON result. Calls have a 75 second timeout and 1 MiB
+output limit. Tools can create task-owned artifacts for rendered pages or
+oversized results, but do not mutate source documents. Artifacts stay outside
+the configured document root by default and use the configured output directory
+when supplied.
+
+Without both variables the Hub does not advertise document tools. Stdio still
+runs with the launching OS user's authority; a configured root is an adapter
+boundary, not an OS sandbox against other processes running as that user.
+
 ## Permitted pool and policy
 
 The registry starts empty. Observing an account does not grant permission to
