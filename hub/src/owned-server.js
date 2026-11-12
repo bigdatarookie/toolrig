@@ -10,8 +10,8 @@ const sameFile = (a, b) => a.dev === b.dev && a.ino === b.ino && a.uid === b.uid
 // Custody of a task-owned public endpoint, not an attestation of a working seat.
 // No API accepts an arbitrary existing socket or a user-written binding file.
 export class OwnedAppServer {
-  constructor(home, { binary = 'codex', timeoutMs = 35000 } = {}) {
-    Object.assign(this, { home: realpathSync(home), binary, timeoutMs });
+  constructor(home, { binary = 'codex', timeoutMs = 35000, watchDirectory = watch } = {}) {
+    Object.assign(this, { home: realpathSync(home), binary, timeoutMs, watchDirectory });
     this.clients = new Set();
   }
   async start() {
@@ -43,11 +43,13 @@ export class OwnedAppServer {
       let settled = false;
       let watcher;
       let timeout;
+      let retry;
       const fail = () => finish(new Error('owned_app_server_unavailable'));
       const finish = error => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        clearTimeout(retry);
         watcher?.close();
         this.child.off('error', fail);
         this.child.off('exit', fail);
@@ -61,10 +63,17 @@ export class OwnedAppServer {
       };
       this.child.once('error', fail);
       this.child.once('exit', fail);
-      watcher = watch(this.directory, check);
+      watcher = this.watchDirectory(this.directory, check);
       watcher.once('error', fail);
-      timeout = setTimeout(fail, this.timeoutMs); // one startup deadline, no polling
-      check();
+      timeout = setTimeout(fail, this.timeoutMs);
+      const readiness = () => {
+        if (settled) return;
+        check();
+        // Some macOS filesystems do not report Unix socket creation to fs.watch.
+        // This ends at the startup deadline/socket readiness, never polls quota.
+        if (!settled) retry = setTimeout(readiness, 50);
+      };
+      readiness();
     });
   }
   inspectEndpoint() {

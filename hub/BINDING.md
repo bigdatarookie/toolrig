@@ -60,6 +60,12 @@ group and removes only its recorded endpoint/lock identities and task directory;
 the shared native socket directory is retained. Same-OS-user logical custody is
 not a sandbox against YOLO processes under that user.
 
+Startup uses a bounded readiness check as well as filesystem events: macOS CI
+did not emit direct Unix-socket creation notifications, although alias creation
+was observed. A fixture suppressing fs.watch notifications reproduced the
+timeout, then passed with the bounded check. It stops on readiness/failure or
+the startup deadline and does not poll quota or install a scheduler.
+
 At 2026-11-12T18:37:30.333Z / 2026-11-13 01:37:30 Asia/Bangkok, two clients on
 one owned app-server both returned the same backend accountId via full public
 reads. No thread/start, thread/resume, turn, account switch or production wake

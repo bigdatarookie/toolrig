@@ -65,6 +65,13 @@ test('Codex protected alias contract is validated and only owned physical socket
   assert.equal(existsSync(physical), false); assert.equal(existsSync(physical + '.lock'), false);
   assert.equal(runtime.cleanupReport.ownProcessStopped, true);
 });
+test('startup readiness works when filesystem socket-creation notifications are absent', async t => {
+  const { runtime } = fixture(t);
+  runtime.watchDirectory = () => ({ once() {}, close() {} });
+  await runtime.start();
+  const client = runtime.source(); await client.connect();
+  assert.equal((await client.snapshot()).usage.accountId, 'fixture-a');
+});
 test('read-only planner scopes lookup to current seat and preserves a concrete native-resume boundary', async () => {
   const calls = [];
   const result = await currentBindingPlan(async args => {

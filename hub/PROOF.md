@@ -148,6 +148,12 @@ metadata DB initialization in the CLI; a failing filesystem regression proved
 it, and lazy diagnostic dispatch now avoids opening/chmod/schema initialization.
 The diagnostic also now returns explicit source and observation timestamps.
 
+Support rechecked exact committed b9fdeca at 2026-11-12T18:47:04.825Z: correct
+coordination-support identity/source/time and a task-owned nonexistent metadata
+DB/parent both remained absent before and after the call. Receipt
+qitem-20261112184751-07846b8f confirms the useful diagnostic without provider or
+native-state access. This is diagnostic adoption, not native transport migration.
+
 Author checks: 43 tests passed on Node24.22.1/macOS; npm audit zero vulnerabilities.
 New checks cover default/caller-claimed/Promise binding refusal, binding revoked
 before park, real WebSocket-over-Unix fixtures, protected alias custody/cleanup,
@@ -165,3 +171,14 @@ NOT RUN/unproven. The canary did not start a thread or duplicate a working seat;
 fork/artifact rebuild are not reported as native resume. Continued ownership is
 the operator recovery parent qitem-toolrig-v03-recovery-operator-20261113, with
 the v0.3 child retaining the exact engineer handoff. No full READY claim.
+
+## v0.3 CI portability correction
+
+macOS CI on b9fdeca timed out waiting for direct Unix socket creation while the
+protected-alias case passed. A fixture suppressing filesystem notifications
+reproduced that timeout. Startup readiness now has a bounded metadata check
+alongside fs.watch and terminates at ready/failure/deadline; it does not poll
+quota or install a scheduler. All 44 tests pass locally after correction. The
+same committed-candidate Support diagnostic remains applicable: its code did
+not change in this readiness correction. Latest exact-SHA CI must be assessed
+by the assigned reviewer before merge; a failed earlier run is not reported green.
