@@ -1,2 +1,7 @@
+.venv/
+.pytest_cache/
+.toolrig-artifacts/
+__pycache__/
+*.py[cod]
 node_modules/
 *.sqlite*
