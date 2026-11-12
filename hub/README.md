@@ -79,6 +79,10 @@ stale, denied, unprovided or past-reset data never implies available capacity or
 a fabricated reset. Elapsed resets require another read; spend/workspace denial
 does not borrow an unrelated quota window's reset.
 
+When the current account is exhausted/provider-blocked, confirmed positive 1–5%
+on a permitted target is usable before waiting for a reset. The decision retains
+that target's low-quota state and remaining percentage in targetAvailability.
+
 For policy requests, call availability_request with a continuation object, or
 use `node src/cli.js request continuation.json`:
 

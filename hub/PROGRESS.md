@@ -9,6 +9,10 @@ verification.qa review of the candidate, with its normal merge authority.
 
 ## Outcomes
 
+- Independent review found low positive target quota wrongly excluded at current
+  0/provider-blocked. Reproduced with focused failing tests, corrected the
+  target predicate, and retained target low-quota warning in the decision.
+
 - Implemented shared CLI/MCP read service, explicit permitted account registry,
   quota policy, atomic shared-home operation/continuation persistence and native
   queue wake adapter without an additional scheduler.

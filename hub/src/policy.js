@@ -88,9 +88,11 @@ export function choose({ currentId, entries, snapshots, project, model, now = Da
   const targets = entries.filter(e => e.authorized && e.authRef && e.authState === 'ready' && grantFor(e, project, model))
     .map(e => ({ accountId: e.accountId,
       ...availability(snapshots[e.accountId], grantFor(e, project, model).requiredBuckets, now) }));
-  const available = targets.filter(t => t.accountId !== currentId && t.state === 'available')
+  const available = targets.filter(t => t.accountId !== currentId &&
+    (t.state === 'available' || (own.state === 'blocked' && t.state === 'low')))
     .sort((a, b) => b.remainingPercent - a.remainingPercent || a.accountId.localeCompare(b.accountId));
-  if (available.length) return { action: 'transition_required', target: available[0].accountId, current: own };
+  if (available.length) return { action: 'transition_required', target: available[0].accountId,
+    targetAvailability: available[0], current: own };
   if (own.state === 'low') return { action: 'continue', reason: 'no_available_alternative_continue_until_zero', current: own };
   const waiting = targets.filter(t => t.state === 'blocked' && t.readyAt)
     .sort((a, b) => Date.parse(a.readyAt) - Date.parse(b.readyAt) || a.accountId.localeCompare(b.accountId));

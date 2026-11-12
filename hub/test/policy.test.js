@@ -38,6 +38,28 @@ test('5 with no alternative continues to zero; zero selects own confirmed reset'
   const d = decide({ a: snapshot('a', 0) }, entries);
   assert.equal(d.action, 'wait'); assert.equal(d.target, 'a'); assert.equal(d.readyAt, reset(10));
 });
+test('current zero uses confirmed target 1-5% before waiting on exhausted quota', () => {
+  for (const remaining of [1, 5]) {
+    const d = decide({ a: snapshot('a', 0), b: snapshot('b', remaining), c: snapshot('c', 0, 30) },
+      [entry(), entry('b'), entry('c')]);
+    assert.equal(d.action, 'transition_required');
+    assert.equal(d.target, 'b');
+    assert.equal(d.targetAvailability.state, 'low');
+    assert.equal(d.targetAvailability.remainingPercent, remaining);
+  }
+});
+test('provider-blocked current uses positive target; unknown/stale/denied low targets stay ineligible', () => {
+  const d = decide({ a: snapshot(), b: snapshot('b', 1) }, undefined, { providerLimit: true });
+  assert.equal(d.action, 'transition_required');
+  assert.equal(d.target, 'b');
+  for (const change of [{ ordinaryUsageAllowed: null }, { ordinaryUsageAllowed: false },
+    { observedAt: reset(-3) }, { observedAt: reset(1) }]) {
+    const b = { ...snapshot('b', 1), ...change };
+    const result = decide({ a: snapshot('a', 0), b });
+    assert.equal(result.action, 'wait');
+    assert.equal(result.target, 'a');
+  }
+});
 test('multi-window earliest target uses max of all exhausted applicable windows', () => {
   const a = snapshot('a', 0, 10);
   a.buckets.codex.windows.push({ remainingPercent: 0, resetsAt: reset(60) });

@@ -6,7 +6,7 @@ not overall availability acceptance or live-switch proof.
 
 ## Author checks
 
-Node 24.22.1 on macOS. npm test: 22 tests passed, including full MCP SDK discovery
+Node 24.22.1 on macOS. Initial candidate npm test: 22 tests passed, including full MCP SDK discovery
 and invocation, permitted policy 5/0, multi-window/bucket reset selection,
 staleness/unknown/provider denial, secret-field exclusion, separate concurrent
 processes joining one operation, persisted native continuation after restart,
@@ -70,3 +70,14 @@ Reset-to-useful-continuation time and downtime are unmeasured, not zero. No new
 human intervention was requested for the author/consumer calls. No exact quota
 or token cost is attributed to them. Review/merge is pending; a working read-only
 consumer and fixtures do not close the full v0.2 outcome.
+
+## Review correction
+
+Independent reviewer requested changes on 99d1b25: at current 0/provider-blocked,
+a permitted target with confirmed positive 1–5% was excluded, causing a wait on
+an exhausted target instead. Two new focused tests reproduced wait/gap instead
+of transition_required before the correction. Policy now allows that low target
+when the current account is blocked, retains its warning/remaining percentage
+in targetAvailability, and still rejects unknown/stale/denied targets. Updated
+suite: 24 tests passed on Node24/macOS. The original live consumer path is
+unchanged; its receipt is not replayed as account-switch proof.
