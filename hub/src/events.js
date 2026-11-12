@@ -6,11 +6,12 @@ import { continuation } from './store.js';
 // Notifications are invalidations, never authoritative quota/account updates.
 // No polling, reconnect timer, private native hook or business-operation retry.
 export class ProviderLimitListener extends EventEmitter {
-  constructor(service, context, { createSource = () => new CodexSession(service.home), wake = armWake } = {}) {
+  constructor(service, context, { createSource = () => new CodexSession(service.home), wake = armWake,
+    verifyNativeBinding = () => false } = {}) {
     super();
     continuation.parse(context);
     if (context.seat !== service.seat || context.model !== service.model) throw new Error('consumer_context_mismatch');
-    Object.assign(this, { service, context, createSource, wake });
+    Object.assign(this, { service, context, createSource, wake, verifyNativeBinding });
     this.revision = 0;
     this.connected = false;
     this.dirty = false;
@@ -77,6 +78,13 @@ export class ProviderLimitListener extends EventEmitter {
           this.emit('result', { action: 'no_wake', reason: 'provider_block_unconfirmed', observedAt: snapshot.observedAt });
           continue;
         }
+        // A matching home/account is not proof this connection owns the native
+        // seat's active thread. Only the runtime owner's validated attachment
+        // receipt can authorize a park; status/selection remain independent.
+        if (!this.bindingVerified(source, snapshot)) {
+          this.emit('result', { action: 'no_wake', reason: 'native_binding_unverified' });
+          continue;
+        }
         const result = this.service.requestFromSnapshot(this.context, snapshot);
         if (result.decision.action !== 'wait' || !result.operation) {
           this.emit('result', { action: 'no_wake', reason: result.decision.action });
@@ -92,6 +100,7 @@ export class ProviderLimitListener extends EventEmitter {
           confirm: () => {
             const latest = this.service.decisionFor(snapshot);
             return this.connected && source === this.source && revision === this.revision &&
+              this.bindingVerified(source, snapshot) &&
               this.service.confirmedProviderBlock(snapshot) && latest.action === 'wait' &&
               latest.target === d.target && latest.readyAt === d.readyAt;
           },
@@ -107,6 +116,15 @@ export class ProviderLimitListener extends EventEmitter {
       this.dirty = false;
       this.emit('diagnostic', { code: 'notification_churn_unconfirmed', retry: 'next_external_event_or_explicit_reconnect' });
     }
+  }
+  bindingVerified(source, snapshot) {
+    // Strict boolean: an unresolved Promise must never become authorization.
+    const result = this.verifyNativeBinding({ source, snapshot, context: this.context });
+    if (result && typeof result.then === 'function') {
+      Promise.resolve(result).catch(() => {}); // consume invalid async-verifier failures, never authorize
+      return false;
+    }
+    return result === true;
   }
   stop() {
     ++this.revision;

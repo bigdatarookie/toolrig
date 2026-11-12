@@ -1,12 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { configuredService } from './config.js';
 import { recoveryPlan, armWake } from './native.js';
+import { currentBindingPlan } from './binding-plan.js';
 
-const service = configuredService();
+let service;
 try {
   const [command, path] = process.argv.slice(2);
+  // Metadata-only native diagnostics must not initialize/chmod the Hub store.
+  if (command !== 'native-binding-plan') service = configuredService();
   let result;
-  if (command === 'status') result = await service.status();
+  if (command === 'native-binding-plan') result = await currentBindingPlan();
+  else if (command === 'status') result = await service.status();
   else if (command === 'register' && path) {
     service.store.register(JSON.parse(readFileSync(path, 'utf8')));
     result = { registered: true };
@@ -16,10 +20,10 @@ try {
   else if (command === 'recovery-plan') {
     const op = service.store.pending(service.home);
     result = op ? recoveryPlan(op) : { pending: false };
-  } else throw new Error('usage: status | register <grant.json> | request <continuation.json> | pending | recovery-plan | arm-wake');
+  } else throw new Error('usage: status | native-binding-plan | register <grant.json> | request <continuation.json> | pending | recovery-plan | arm-wake');
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {
   // Provider and validation bodies can contain private inputs: print codes only.
   console.error(JSON.stringify({ error: error.message?.startsWith('usage:') ? error.message : 'availability_request_failed' }));
   process.exitCode = 1;
-} finally { service.store.close(); }
+} finally { service?.store.close(); }

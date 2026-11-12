@@ -47,6 +47,14 @@ The native adapter verifies the existing qitem owner, atomically claims the wake
 and reconciles lost responses. No business task is retried. A later nonblocked
 snapshot does not clear a previously recorded blocker or claim useful recovery.
 
+The v0.3 native-binding boundary additionally requires the runtime owner's
+internal verifier before creating a native event wait and before park. It is
+false by default; an independent connection, matching home/account or a supplied
+binding label does not attest a native seat. The default entrypoint remains
+diagnostic until the owner supplies a verified native attachment. See
+[BINDING.md](BINDING.md) for the tested public Unix alternative and exact next
+OpenRig launch/relay implementation.
+
 RPC failure or transport loss stops the connection and reports a code-only
 diagnostic. Explicit reconnect creates a new source generation, ignores old
 notifications/in-flight responses and waits for a new invalidation. There is no

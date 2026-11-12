@@ -13,6 +13,7 @@ npm ci --ignore-scripts
 npm test
 node src/cli.js status
 node src/status-client.js
+node src/cli.js native-binding-plan
 ```
 
 The final command discovers and calls availability_status through an MCP client.
@@ -127,6 +128,12 @@ It refetches a full snapshot and routes only confirmed blocked state through the
 existing native wake adapter. It is not installed on a running native seat, and
 its fixture proof is not live event-to-resume proof. Sparse notifications never
 overwrite nullable account metadata; status always fetches a full snapshot.
+
+[BINDING.md](BINDING.md) records the implemented v0.3 binding investigation,
+working public Unix transport canary and exact owner-side native launch design.
+Event routing now also requires a runtime-owner binding verifier, false by
+default: an independent app-server cannot authorize a native park as though it
+were the running seat. This does not gate configured-home reads or selection.
 
 OpenRig 0.7.7 documents Codex provider switch as Linux-only. On the observed
 macOS host, seat restart --keep-conversation --plan refused because cwd/home

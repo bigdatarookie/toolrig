@@ -120,3 +120,48 @@ The reviewer inspected the candidate and all four passing exact-SHA CI checks;
 the author ran the 35-test suite, and the reviewer did not rerun it. This accepts
 the bounded code/fixture increment, not a live provider/native-seat binding,
 production wake, useful continuation or full availability READY claim.
+
+## v0.3 binding investigation and implemented canary
+
+User assignment qitem-toolrig-v03-availability-binding-20261113 supersedes the
+old maintainer-discovery human wait; ordinary source/API research continued.
+Installed OpenRig source explains per-seat --no-daemon isolation. Matching
+official Codex rust-v0.166.0 source at 6ff1e1ca establishes embedded-session
+transport and thread-scoped quota delivery. [BINDING.md](BINDING.md) links exact
+source and gives the prepared dedicated-backend/native-TUI launch/relay design.
+
+Actual public Unix canary succeeded at 2026-11-12T18:37:30.333Z / 2026-11-13
+01:37:30 Asia/Bangkok: two independent read clients on one task-owned app-server
+returned the same backend accountId. The native protected alias and WebSocket
+transport were validated. It reported nativeSeatBound=false, no native thread
+start, zero observed quota events and no production wake. Its own process,
+task directory and recorded physical endpoint were confirmed cleaned. This is
+a real transport/account-scope attempt, not existing native-seat binding or a
+quota exhaustion test. Initial alias and raw-proxy failures changed the adapter
+to the source-confirmed protocol; no arbitrary socket was attached.
+
+Support used native-binding-plan at 2026-11-12T18:39:23Z and obtained its own
+coordination-support seat, recorded embedded mode and concrete launch seam;
+receipt qitem-20261112184011-18ba54ff. Home metadata remained explicitly distinct
+from actual native account proof. Consumer source inspection caught eager
+metadata DB initialization in the CLI; a failing filesystem regression proved
+it, and lazy diagnostic dispatch now avoids opening/chmod/schema initialization.
+The diagnostic also now returns explicit source and observation timestamps.
+
+Author checks: 43 tests passed on Node24.22.1/macOS; npm audit zero vulnerabilities.
+New checks cover default/caller-claimed/Promise binding refusal, binding revoked
+before park, real WebSocket-over-Unix fixtures, protected alias custody/cleanup,
+endpoint replacement refusal, own-seat-only lookup and no diagnostic DB writes.
+The default event listener cannot reserve/arm a native wait without the runtime
+owner's verifier; matching home/account cannot stand in for a native attachment.
+Working read/limits/selection are not gated on that missing integration.
+
+Remaining exact operation is an owner-controlled OpenRig opt-in launch/relay
+source candidate, then a reviewed managed deployment/safe native-resume cutover.
+No installed/running daemon patch, seat restart, account/auth/model/effort or
+permission change occurred. Native seat binding, natural live quota event,
+production wake, reset-to-useful-continuation and cohort preservation remain
+NOT RUN/unproven. The canary did not start a thread or duplicate a working seat;
+fork/artifact rebuild are not reported as native resume. Continued ownership is
+the operator recovery parent qitem-toolrig-v03-recovery-operator-20261113, with
+the v0.3 child retaining the exact engineer handoff. No full READY claim.
