@@ -7,6 +7,7 @@ This is a one-node OpenBao service for Toolrig. It uses the official `openbao/op
 - One Compose service, integrated Raft storage in a Docker named volume, and no dev mode.
 - Host API port is bound to `127.0.0.1` only. TLS is disabled inside the container network; this endpoint is for the local host and must not be published on a LAN or routed through an unauthenticated proxy.
 - Root filesystem is read-only, all Linux capabilities are dropped, and the process has no-new-privileges. Compose owns restart; `down` preserves the named data volume. OpenBao 2.7.2 removed the `disable_mlock` option, so this deployment does not set it.
+- Raft snapshot restore streams to the OpenBao API. OpenBao's server-side temporary snapshot file uses `TMPDIR=/openbao/file` on the durable Docker volume, not the 16 MiB container `/tmp` tmpfs; the file API cleanup removes it after the operation.
 - The same pinned image has an opt-in test profile for a disposable OpenBao Agent consumer. It is not part of the running backend.
 
 The base Compose file resolves all state outside the repository. By default, OpenBao's Raft data is a Docker named volume; snapshots are written to `~/.openrig/services/toolrig/openbao/backups`. Bootstrap material is outside the backend and repository at `~/.openrig/recovery/toolrig/openbao/bootstrap.json`.
@@ -33,7 +34,7 @@ services/openbao/bin/openbao backup
 services/openbao/bin/openbao test
 ```
 
-`bin/openbao down` stops this Compose project but preserves data. Never add `-v` to its Compose operation. The integration test uses its own unique Compose project and temp directories, restores only that disposable Raft snapshot, then removes only its own container, volume, and generated files.
+`bin/openbao down` stops this Compose project but preserves data; it accepts no extra arguments, so Compose volume-deletion flags cannot be forwarded. The integration test uses its own unique Compose project and temp directories, restores only that disposable Raft snapshot, then removes only its own container, volume, and generated files.
 
 ## Stable reference and policy boundary
 

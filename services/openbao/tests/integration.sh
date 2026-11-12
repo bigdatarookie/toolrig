@@ -24,7 +24,11 @@ source "$OPENBAO_ROOT/bin/common.sh"
 CONSUMER_NAME="toolrig-openbao-consumer-${RUN_ID}"
 CONSUMER_CREDENTIALS="$TMP_ROOT/consumer-credentials"
 SECRET_FILE="$TMP_ROOT/synthetic-secret"
+LARGE_VALUE_FILE="$TMP_ROOT/synthetic-large-value"
+LARGE_PAYLOAD_FILE="$TMP_ROOT/synthetic-large-payload.json"
+LARGE_RAW_FILE="$TMP_ROOT/synthetic-large-random"
 EXPECTED_SHA256_FILE="$TMP_ROOT/expected-sha256"
+EXPECTED_LARGE_SHA256_FILE="$TMP_ROOT/expected-large-sha256"
 BACKUP_FILE=""
 
 cleanup() {
@@ -48,6 +52,14 @@ sha256() {
   fi
 }
 
+test_root_curl() {
+  local token
+  token="$(jq -er '.root_token | select(type == "string" and length > 0)' "$OPENBAO_BOOTSTRAP_FILE")"
+  printf 'header = "X-Vault-Token: %s"\n' "$token" |
+    curl --disable --config - --silent --show-error "$@"
+  unset token
+}
+
 wait_for_api() {
   local i
   for i in $(seq 1 40); do
@@ -64,6 +76,14 @@ run_with_root() {
 }
 
 compose up -d openbao >/dev/null
+for volume_flag in -v --volumes; do
+  if "$OPENBAO_ROOT/bin/openbao" down "$volume_flag" >/dev/null 2>&1; then
+    fail "down accepted destructive Compose flag: $volume_flag"
+  fi
+done
+container="$(compose ps -q openbao)"
+[[ -n "$container" ]] || fail 'a rejected down flag stopped the isolated service'
+docker volume inspect "${TOOLRIG_OPENBAO_PROJECT}_data" >/dev/null || fail 'a rejected down flag removed the isolated Raft volume'
 wait_for_api
 run_with_root init >/dev/null
 run_with_root unseal >/dev/null
@@ -88,21 +108,51 @@ if [[ "$read_hash" != "$EXPECTED_SHA256" ]]; then
   fail 'synthetic secret read-back hash differed'
 fi
 
+# Add many small random test-only records so their aggregate snapshot exceeds container /tmp.
+LARGE_ENTRY_COUNT=40
+for large_index in $(seq 1 "$LARGE_ENTRY_COUNT"); do
+  openssl rand -out "$LARGE_RAW_FILE" $((384 * 1024))
+  LARGE_RAW_FILE="$LARGE_RAW_FILE" LARGE_VALUE_FILE="$LARGE_VALUE_FILE" LARGE_PAYLOAD_FILE="$LARGE_PAYLOAD_FILE" python3 - <<'PY'
+import base64
+import json
+import os
+from pathlib import Path
+
+raw = Path(os.environ["LARGE_RAW_FILE"]).read_bytes()
+value = base64.b64encode(raw).decode("ascii")
+Path(os.environ["LARGE_VALUE_FILE"]).write_text(value)
+Path(os.environ["LARGE_PAYLOAD_FILE"]).write_text(json.dumps({"data": {"value": value}}))
+PY
+  chmod 600 "$LARGE_VALUE_FILE" "$LARGE_PAYLOAD_FILE"
+  if [[ "$large_index" == 1 ]]; then
+    sha256 <"$LARGE_VALUE_FILE" >"$EXPECTED_LARGE_SHA256_FILE"
+  fi
+  test_root_curl --fail --request POST --header 'Content-Type: application/json' \
+    --data-binary "@$LARGE_PAYLOAD_FILE" \
+    "$OPENBAO_ADDR/v1/secret/data/toolrig/testing/large/item-$large_index" >/dev/null
+done
+
 # Backup and restore are exercised only against this disposable project and volume.
 BACKUP_FILE="$(run_with_root backup)"
+backup_size="$(wc -c <"$BACKUP_FILE" | tr -d ' ')"
+[[ "$backup_size" -gt $((16 * 1024 * 1024)) ]] || fail 'large synthetic test did not produce a snapshot over 16 MiB'
 root_bao kv delete secret/toolrig/testing/consumer >/dev/null
+for large_index in $(seq 1 "$LARGE_ENTRY_COUNT"); do
+  root_bao kv delete "secret/toolrig/testing/large/item-$large_index" >/dev/null
+done
 deleted_json="$(root_bao kv get -format=json secret/toolrig/testing/consumer 2>/dev/null || true)"
 deleted_value_present="$(printf '%s' "$deleted_json" | jq -r 'if .data? then (.data.data.value? != null) else false end' 2>/dev/null || printf 'unknown')"
 [[ "$deleted_value_present" == false ]] || fail 'deleted secret remained readable or the read response was not parseable'
 status_json="$(docker exec "$container" bao status -format=json 2>/dev/null || true)"
 printf '%s' "$status_json" | jq -e '.initialized == true and .sealed == false' >/dev/null || fail 'OpenBao became unavailable during restore drill'
-container="$(compose ps -q openbao)"
-docker exec -i --user 100:1000 "$container" /bin/sh -c \
-  'umask 077; cat > /tmp/openbao-restore.snap && chmod 400 /tmp/openbao-restore.snap' \
-  <"$BACKUP_FILE"
-root_bao operator raft snapshot restore /tmp/openbao-restore.snap >/dev/null
+run_with_root restore "$BACKUP_FILE" >/dev/null
 restored_hash="$(root_bao kv get -format=json secret/toolrig/testing/consumer | jq -j '.data.data.value' | sha256)"
 [[ "$restored_hash" == "$EXPECTED_SHA256" ]] || fail 'isolated snapshot restore did not recover the test secret'
+restored_large_count="$(root_bao kv list -format=json secret/toolrig/testing/large | jq 'length')"
+[[ "$restored_large_count" == "$LARGE_ENTRY_COUNT" ]] || fail 'isolated snapshot restore did not recover all large synthetic records'
+restored_large_hash="$(root_bao kv get -format=json secret/toolrig/testing/large/item-1 | jq -j '.data.data.value' | sha256)"
+EXPECTED_LARGE_SHA256="$(cat "$EXPECTED_LARGE_SHA256_FILE")"
+[[ "$restored_large_hash" == "$EXPECTED_LARGE_SHA256" ]] || fail 'isolated snapshot restore did not recover the large synthetic test secret'
 
 # A distinct identity has no policy for the test path and must be denied.
 denied_token="$(root_bao token create -policy=default -ttl=2m -field=token)"

@@ -46,3 +46,13 @@ root_bao() {
   token="$(jq -er '.root_token | select(type == "string" and length > 0)' "$OPENBAO_BOOTSTRAP_FILE")"
   BAO_TOKEN="$token" compose exec -T -e BAO_TOKEN openbao bao "$@"
 }
+
+root_api() {
+  require_bootstrap
+  local token
+  token="$(jq -er '.root_token | select(type == "string" and length > 0)' "$OPENBAO_BOOTSTRAP_FILE")"
+  printf 'header = "X-Vault-Token: %s"\n' "$token" |
+    curl --disable --config - --fail --silent --show-error \
+      --connect-timeout 5 --max-time "${TOOLRIG_OPENBAO_SNAPSHOT_TIMEOUT:-1800}" "$@"
+  unset token
+}

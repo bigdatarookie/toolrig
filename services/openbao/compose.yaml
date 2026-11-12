@@ -4,6 +4,7 @@ services:
     command: ["server", "-config=/openbao/config/server.hcl"]
     environment:
       BAO_ADDR: http://127.0.0.1:8200
+      TMPDIR: /openbao/file
     ports:
       - "${TOOLRIG_OPENBAO_BIND:-127.0.0.1}:${TOOLRIG_OPENBAO_PORT:-8200}:8200"
     volumes:

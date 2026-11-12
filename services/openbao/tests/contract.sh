@@ -10,6 +10,7 @@ test -f "$openbao_root/config/server.hcl"
 test -f "$openbao_root/config/agent.hcl"
 test -x "$openbao_root/bin/consumer-check"
 test -f "$openbao_root/tests/integration.sh"
+grep -q 'down does not accept Compose arguments' "$openbao_root/bin/openbao"
 
 config_json="$("$openbao_root/bin/openbao" config --format json)"
 CONFIG_JSON="$config_json" python3 - <<'PY'
@@ -23,6 +24,7 @@ service = services["openbao"]
 assert service["image"].endswith("@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f")
 assert service["ports"][0]["host_ip"] == "127.0.0.1"
 assert service["read_only"] is True
+assert service["environment"]["TMPDIR"] == "/openbao/file"
 assert "cap_add" not in service
 assert len(service["volumes"]) == 2
 assert "/openbao/file" in {volume["target"] for volume in service["volumes"]}
