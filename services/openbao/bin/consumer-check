@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+actual="$(printf %s "$TOOLRIG_TEST_SECRET" | sha256sum | awk '{print $1}')"
+if [ "$actual" != "$TOOLRIG_EXPECTED_SHA256" ]; then
+  printf '%s\n' 'consumer-read-failed' >&2
+  exit 1
+fi
+
+printf '%s\n' 'consumer-read-permitted'
+exec sleep 120
