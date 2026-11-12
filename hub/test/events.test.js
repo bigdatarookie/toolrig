@@ -44,6 +44,7 @@ function setup(t) {
   };
   const listener = new ProviderLimitListener(service, context, {
     createSource: () => source,
+    verifyNativeBinding: () => true, // explicit fixture owner, never a production attestation
     wake: (s, h, owner, options) => armWake(s, h, owner, { ...options, run }),
   });
   const results = [], diagnostics = [];
@@ -177,13 +178,43 @@ test('unknown native effect reconciles repeated events without another park', as
 });
 test('two listeners join one operation and do not duplicate the native wake', async t => {
   const x = setup(t); const source = new Source(); source.read = async () => x.raw();
-  const second = new ProviderLimitListener(x.service, context, { createSource: () => source, wake: x.listener.wake });
+  const second = new ProviderLimitListener(x.service, context, { createSource: () => source, wake: x.listener.wake,
+    verifyNativeBinding: () => true });
   t.after(async () => { second.stop(); await second.idle(); });
   await x.listener.start(); await second.start();
   x.source.notify(); source.notify();
   await Promise.all([x.listener.idle(), second.idle()]);
   assert.equal(x.calls.filter(c => c[1] === 'block').length, 1);
   assert.equal(x.store.pending(x.home).waiters.length, 1);
+});
+test('default source or caller-supplied binding label cannot attest a native seat', async t => {
+  const x = setup(t); const source = new Source(); source.read = async () => x.raw();
+  source.binding = { nativeSeatBound: true, seat: 's' }; // untrusted claim, not owner verification
+  const listener = new ProviderLimitListener(x.service, context, { createSource: () => source, wake: x.listener.wake });
+  const results = []; listener.on('result', r => results.push(r));
+  t.after(async () => { listener.stop(); await listener.idle(); });
+  await listener.start(); source.notify(); await listener.idle();
+  assert.equal(results.at(-1).reason, 'native_binding_unverified');
+  assert.equal(x.store.pending(x.home), null); assert.equal(x.calls.length, 0);
+  for (const verify of [() => Promise.resolve(true), () => Promise.reject(new Error('private-verifier-error'))]) {
+    listener.verifyNativeBinding = verify;
+    source.notify(); await listener.idle();
+    assert.equal(results.at(-1).reason, 'native_binding_unverified');
+    assert.equal(x.calls.length, 0);
+  }
+});
+test('binding revoked during native owner lookup cannot arm a wake', async t => {
+  const x = setup(t); let verified = true;
+  x.listener.verifyNativeBinding = () => verified;
+  x.listener.wake = (s, h, owner, options) => armWake(s, h, owner, { ...options,
+    run: async args => {
+      x.calls.push(args); assert.equal(args[1], 'show'); verified = false;
+      return { destinationSession: 's', state: 'in-progress' };
+    },
+  });
+  await x.listener.start(); x.source.notify(); await x.listener.idle();
+  assert.equal(x.calls.filter(a => a[1] === 'block').length, 0);
+  assert.equal(x.store.pending(x.home).wake, null);
 });
 test('public JSON-RPC notification transport reaches adapter; no model/private method used', async t => {
   const x = setup(t); const binary = join(x.home, 'fixture-codex');
