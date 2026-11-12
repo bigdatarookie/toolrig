@@ -10,20 +10,24 @@ const sameFile = (a, b) => a.dev === b.dev && a.ino === b.ino && a.uid === b.uid
 // Custody of a task-owned public endpoint, not an attestation of a working seat.
 // No API accepts an arbitrary existing socket or a user-written binding file.
 export class OwnedAppServer {
-  constructor(home, { binary = 'codex', timeoutMs = 35000, watchDirectory = watch } = {}) {
+  constructor(home, { binary = 'codex', timeoutMs = 35000, watchDirectory = watch, prefix = [], environment, cwd, configOverrides } = {}) {
     Object.assign(this, { home: realpathSync(home), binary, timeoutMs, watchDirectory });
+    Object.assign(this, { prefix, environment, cwd, configOverrides });
     this.clients = new Set();
   }
   async start() {
     if (this.directory) throw new Error('server_already_started');
     if (process.platform === 'win32') throw new Error('unix_transport_required');
+    const environment = this.environment ?? { ...process.env, CODEX_HOME: this.home };
+    if (realpathSync(environment.CODEX_HOME) !== this.home) throw new Error('provider_home_mismatch');
     // Short path for macOS sockaddr_un. mkdtemp creates a private 0700 directory.
     this.directory = realpathSync(mkdtempSync('/tmp/toolrig-bind-'));
     this.directoryIdentity = lstatSync(this.directory);
     this.socket = join(this.directory, 'control.sock');
-    this.child = spawn(this.binary, ['-c', 'features.plugins=false', '-c', 'features.apps=false',
+    const overrides = this.configOverrides ?? ['features.plugins=false', 'features.apps=false'];
+    this.child = spawn(this.binary, [...this.prefix, ...overrides.flatMap(value => ['-c', value]),
       'app-server', '--listen', 'unix://' + this.socket], {
-      env: { ...process.env, CODEX_HOME: this.home }, stdio: 'ignore', detached: true,
+      env: environment, cwd: this.cwd, stdio: 'ignore', detached: true,
     });
     try {
       await this.waitForSocket();
@@ -105,7 +109,7 @@ export class OwnedAppServer {
         !sameFile(socket, this.socketIdentity) || physical.path !== this.physicalPath ||
         !sameFile(physical.identity, this.physicalIdentity)) throw new Error('endpoint_custody_changed');
   }
-  source() {
+  source({ inspectRuntime = false } = {}) {
     this.assertCustody();
     const owner = this;
     const client = new class extends UnixCodexSession {
@@ -123,7 +127,7 @@ export class OwnedAppServer {
         owner.assertCustody();
         return result;
       }
-    }(this.home, this.physicalPath, { timeoutMs: this.timeoutMs });
+    }(this.home, this.physicalPath, { timeoutMs: this.timeoutMs, inspectRuntime });
     // This fact is deliberately insufficient for ProviderLimitListener native
     // authorization. It cannot be upgraded by a caller-supplied seat name.
     client.binding = Object.freeze({ kind: 'task-owned-app-server', nativeSeatBound: false,

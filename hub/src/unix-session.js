@@ -4,7 +4,7 @@ import { CodexSession } from './codex.js';
 // Codex's public Unix transport is WebSocket-over-UDS, not NDJSON-over-UDS.
 // This is a read-only transport adapter; it never starts/resumes/runs a thread.
 export class UnixCodexSession extends CodexSession {
-  constructor(home, socket, options = {}) { super(home, options); this.socketPath = socket; }
+  constructor(home, socket, options = {}) { super(home, options); this.socketPath = socket; this.inspectRuntime = options.inspectRuntime === true; }
   async connect() {
     this.socket = new WebSocket('ws+unix://' + this.socketPath + ':/', { maxPayload: 1024 * 1024,
       perMessageDeflate: false, handshakeTimeout: this.timeoutMs });
@@ -30,7 +30,8 @@ export class UnixCodexSession extends CodexSession {
     } catch (error) { this.close(); throw error; }
   }
   rpc(method, params) {
-    if (!['initialize', 'account/read', 'account/rateLimits/read'].includes(method)) {
+    if (!['initialize', 'account/read', 'account/rateLimits/read',
+      ...(this.inspectRuntime ? ['config/read', 'thread/loaded/list'] : [])].includes(method)) {
       return Promise.reject(new Error('provider_method_not_allowed'));
     }
     if (this.closed || this.socket?.readyState !== WebSocket.OPEN) return Promise.reject(new Error('provider_unavailable'));

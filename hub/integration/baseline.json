@@ -1,0 +1,7 @@
+{
+  "package": "@openrig/cli",
+  "version": "0.7.7",
+  "path": "daemon/dist/adapters/codex-runtime-adapter.js",
+  "sha256": "9fabb85827c7ffdeadb8d69d8120983b2df5b841cdcd4f8faa79f31ff1e1d67a",
+  "purpose": "offline source review artifact; never apply to installed/running daemon"
+}

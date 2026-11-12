@@ -182,3 +182,16 @@ quota or install a scheduler. All 44 tests pass locally after correction. The
 same committed-candidate Support diagnostic remains applicable: its code did
 not change in this readiness correction. Latest exact-SHA CI must be assessed
 by the assigned reviewer before merge; a failed earlier run is not reported green.
+
+## Offline native launch/relay source increment after PR #9
+
+Native hooks, dedicated backend launch, authenticated sole-TUI relay and revocable
+internal verifier are implemented as an opt-in source candidate. No installed
+adapter, daemon, account/home, existing seat or original conversation was changed.
+Author local suite: 54/54; nine new source fixtures cover launch identity,
+original resume, same-backend snapshot/event provenance, denied second owner,
+drift revocation, generation lease and existing reserve/pre-park continuation.
+The first fixture run exposed an incorrect undefined-vs-null assertion after
+revocation; corrected the assertion to the implemented revoked state. No provider
+inference/thread/turn or actual native queue park occurred. Exact baseline patch,
+launch/deployment contract and residual native proofs: NATIVE-LAUNCH.md.
