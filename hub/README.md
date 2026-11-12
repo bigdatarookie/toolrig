@@ -122,10 +122,10 @@ business operation whose effect is unknown.
 This candidate **does not execute auth changes, retarget/restart or cohort
 transitions**. Native precheck/verification are available as integration helpers;
 execution is disabled until supported isolation and the provided pool are proven.
-The internal policy accepts a confirmed provider-limit signal for tests/native
-integration, but no live provider-limit subscription/hook is installed by this
-candidate. A blocked seat's automatic event-to-resume path remains an integration
-gap, not a passing fixture claim. Sparse rateLimits/updated notifications do not
+An opt-in public app-server notification adapter is described in [EVENTS.md](EVENTS.md).
+It refetches a full snapshot and routes only confirmed blocked state through the
+existing native wake adapter. It is not installed on a running native seat, and
+its fixture proof is not live event-to-resume proof. Sparse notifications never
 overwrite nullable account metadata; status always fetches a full snapshot.
 
 OpenRig 0.7.7 documents Codex provider switch as Linux-only. On the observed

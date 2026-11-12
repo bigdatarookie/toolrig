@@ -31,7 +31,7 @@ const runJson = async args => JSON.parse((await exec('rig', args, { timeout: 350
 
 // Native queue owns the durable timer and work. Reconcile a lost response before
 // retrying; never mint another task, timer loop or synthetic completion.
-export async function armWake(store, home, seat, { run = runJson, now = Date.now() } = {}) {
+export async function armWake(store, home, seat, { run = runJson, now = Date.now(), clock = () => now, confirm = () => true } = {}) {
   const op = store.pending(home);
   if (!op || op.continuation.seat !== seat) throw new Error('wake_owner_mismatch');
   const q = await run(['queue', 'show', op.continuation.qitem, '--full', '--json']);
@@ -45,8 +45,9 @@ export async function armWake(store, home, seat, { run = runJson, now = Date.now
   }
   if (op.wake) throw new Error('wake_effect_unknown_reconcile_native_queue');
   if (!['pending', 'in-progress'].includes(q.state)) throw new Error('native_qitem_not_actionable');
-  const plan = recoveryPlan(op, now);
+  const plan = recoveryPlan(op, clock());
   if (!plan.wake) throw new Error('fresh_observation_required');
+  if (!confirm()) throw new Error('provider_block_no_longer_confirmed');
   if (!store.claimWake(op.id)) throw new Error('wake_effect_unknown_reconcile_native_queue');
   try {
     const result = await run([...plan.wake.slice(1), '--json']);
