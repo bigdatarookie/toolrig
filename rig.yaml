@@ -1,4 +1,4 @@
-# Toolrig v0.1: user-authorized launch; service migrations remain separately scoped.
+# Toolrig v0.2: user-authorized implementation; service migrations remain separately scoped.
 version: "0.2"
 name: toolrig
 summary: Shared tool hub and host infrastructure; launch authorized
