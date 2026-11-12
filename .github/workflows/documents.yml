@@ -1,0 +1,47 @@
+name: document-service
+
+on:
+  push:
+    paths:
+      - "src/toolrig_documents/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/documents.yml"
+  pull_request:
+    paths:
+      - "src/toolrig_documents/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/documents.yml"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        python-version: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - name: Install native document tools
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install poppler tesseract
+          else
+            sudo apt-get update
+            sudo apt-get install -y poppler-utils tesseract-ocr
+          fi
+      - run: uv sync --frozen --extra dev
+      - run: uv run python tests/generate_fixtures.py
+      - run: uv run pytest
+      - name: CLI smoke
+        run: uv run toolrig-documents inspect tests/fixtures/text.pdf
