@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "$0")/common.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: bin/openbao <command>
+
+Commands:
+  config       Render the pinned Compose service configuration
+  up           Start the single OpenBao service (does not initialize or unseal it)
+  status       Show only service/initialization/seal status
+  init         Initialize once and save recovery material outside the repository
+  unseal       Unseal from the owner-only external recovery file
+  backup       Save a Raft snapshot outside the repository
+  restore FILE Restore a Raft snapshot to the current instance (destructive)
+  test         Run the disposable integration test suite
+  down         Stop this service without deleting its persistent volume
+EOF
+}
+
+cmd="${1:-help}"
+if (($#)); then shift; fi
+
+case "$cmd" in
+  config)
+    compose config "$@"
+    ;;
+  up)
+    ensure_private_dirs
+    compose up -d "$@"
+    ;;
+  status)
+    compose ps
+    if compose ps -q openbao | grep -q .; then
+      status_json="$(docker exec "$(compose ps -q openbao)" bao status -format=json 2>/dev/null || true)"
+      if [[ -n "$status_json" ]]; then
+        printf '%s\n' "$status_json" | jq '{initialized: .initialized, sealed: .sealed, version: .version, storage_type: .storage_type}'
+      fi
+    fi
+    ;;
+  init)
+    ensure_private_dirs
+    if [[ -e "$OPENBAO_BOOTSTRAP_FILE" ]]; then
+      printf 'refusing to initialize: recovery file already exists\n' >&2
+      exit 1
+    fi
+    tmp="$(mktemp "$OPENBAO_RECOVERY_DIR/.bootstrap.XXXXXX")"
+    chmod 600 "$tmp"
+    trap 'rm -f "$tmp"' EXIT
+    compose exec -T openbao bao operator init -format=json -key-shares=1 -key-threshold=1 >"$tmp"
+    jq -e '(.unseal_keys_b64 | length == 1) and (.root_token | type == "string" and length > 0)' "$tmp" >/dev/null
+    chmod 600 "$tmp"
+    mv "$tmp" "$OPENBAO_BOOTSTRAP_FILE"
+    trap - EXIT
+    printf 'OpenBao initialized. Bootstrap material is stored owner-only at %s; values were not printed.\n' "$OPENBAO_BOOTSTRAP_FILE"
+    ;;
+  unseal)
+    require_bootstrap
+    reachable=false
+    for _ in $(seq 1 40); do
+      if curl --silent --output /dev/null "$OPENBAO_ADDR/v1/sys/health"; then
+        reachable=true
+        break
+      fi
+      sleep 1
+    done
+    [[ "$reachable" == true ]] || { printf 'OpenBao API did not become reachable within 40 seconds\n' >&2; exit 1; }
+    response="$(jq -c '{key: .unseal_keys_b64[0]}' "$OPENBAO_BOOTSTRAP_FILE" |
+      curl --fail --silent --show-error --request PUT \
+        --header 'Content-Type: application/json' --data-binary @- "$OPENBAO_ADDR/v1/sys/unseal")"
+    printf '%s\n' "$response" | jq '{initialized: .initialized, sealed: .sealed, progress: .progress}'
+    unset response
+    ;;
+  backup)
+    ensure_private_dirs
+    require_bootstrap
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import uuid; print(uuid.uuid4())')"
+    snapshot="$OPENBAO_BACKUP_DIR/openbao-$stamp.snap"
+    tmp="$OPENBAO_BACKUP_DIR/.openbao-$stamp.tmp"
+    container="$(compose ps -q openbao)"
+    [[ -n "$container" ]] || { printf 'OpenBao container is not running\n' >&2; exit 1; }
+    root_bao operator raft snapshot save /tmp/openbao-backup.snap
+    docker exec "$container" test -s /tmp/openbao-backup.snap || {
+      printf 'OpenBao reported snapshot save, but no snapshot file exists in container tmpfs\n' >&2
+      exit 1
+    }
+    docker exec "$container" cat /tmp/openbao-backup.snap >"$tmp"
+    [[ -s "$tmp" ]] || { printf 'OpenBao snapshot stream was empty\n' >&2; exit 1; }
+    chmod 600 "$tmp"
+    mv "$tmp" "$snapshot"
+    printf '%s\n' "$snapshot"
+    ;;
+  restore)
+    ensure_private_dirs
+    require_bootstrap
+    snapshot="${1:?Usage: bin/openbao restore SNAPSHOT_FILE}"
+    [[ -f "$snapshot" ]] || { printf 'snapshot file not found\n' >&2; exit 1; }
+    container="$(compose ps -q openbao)"
+    [[ -n "$container" ]] || { printf 'OpenBao container is not running\n' >&2; exit 1; }
+    docker exec -i --user 100:1000 "$container" /bin/sh -c \
+      'umask 077; cat > /tmp/openbao-restore.snap && chmod 400 /tmp/openbao-restore.snap' \
+      <"$snapshot"
+    printf 'Restoring %s into the active OpenBao instance. Confirm at the OpenBao prompt.\n' "$snapshot" >&2
+    root_bao operator raft snapshot restore /tmp/openbao-restore.snap
+    ;;
+  test)
+    exec "$OPENBAO_ROOT/tests/integration.sh" "$@"
+    ;;
+  down)
+    compose down "$@"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

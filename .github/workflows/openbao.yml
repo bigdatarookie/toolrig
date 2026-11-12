@@ -1,0 +1,24 @@
+name: OpenBao
+
+on:
+  pull_request:
+    paths:
+      - 'services/openbao/**'
+      - '.github/workflows/openbao.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/openbao/**'
+      - '.github/workflows/openbao.yml'
+
+jobs:
+  isolated-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify deployment contract
+        run: services/openbao/tests/contract.sh
+      - name: Verify isolated OpenBao integration
+        run: services/openbao/tests/integration.sh

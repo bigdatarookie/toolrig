@@ -1,0 +1,22 @@
+services:
+  consumer:
+    profiles: ["test-consumer"]
+    image: docker.io/openbao/openbao:2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
+    entrypoint: ["bao"]
+    command: ["agent", "-config=/openbao/config/agent.hcl"]
+    depends_on:
+      openbao:
+        condition: service_healthy
+    environment:
+      TOOLRIG_EXPECTED_SHA256: ${TOOLRIG_OPENBAO_EXPECTED_SHA256:?set by the integration test}
+    volumes:
+      - ./config/agent.hcl:/openbao/config/agent.hcl:ro
+      - ./bin/consumer-check:/openbao/bin/consumer-check:ro
+      - ${TOOLRIG_OPENBAO_AGENT_CREDENTIALS:?set by the integration test}:/run/openbao/credentials:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
