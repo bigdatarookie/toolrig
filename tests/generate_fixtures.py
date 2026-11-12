@@ -27,6 +27,13 @@ def text_pdf() -> None:
     pdf.save()
 
 
+def oversized_pdf() -> None:
+    output = FIXTURES / "oversized-page.pdf"
+    pdf = canvas.Canvas(str(output), pagesize=(20_000, 20_000))
+    pdf.drawString(72, 19_900, "Page exceeds the render pixel limit")
+    pdf.save()
+
+
 def table_pdf() -> None:
     output = FIXTURES / "table.pdf"
     pdf = canvas.Canvas(str(output), pagesize=letter)
@@ -100,6 +107,7 @@ def unsupported_fixture() -> None:
 
 if __name__ == "__main__":
     text_pdf()
+    oversized_pdf()
     table_pdf()
     scanned_pdf()
     docx_fixture()

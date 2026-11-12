@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -26,6 +27,9 @@ MAX_CELLS = 5_000
 MAX_OUTPUT_BYTES = 16_000
 MAX_PREVIEW_CHARS = 8_000
 MAX_INPUT_BYTES = 100 * 1024 * 1024
+MAX_RENDER_SIDE_PIXELS = 10_000
+MAX_RENDER_PIXELS = 10_000_000
+MAX_RENDER_ARTIFACT_BYTES = 40 * 1024 * 1024
 SUPPORTED = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".docx", ".xlsx", ".csv"}
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
@@ -191,6 +195,19 @@ def _pdf_render(source: Path, page: int, dpi: int = 120) -> Path:
     executable = shutil.which("pdftoppm")
     if not executable:
         raise DocumentError("dependency_missing", "Poppler pdftoppm is required for PDF rendering.")
+    try:
+        with pdfplumber.open(source) as pdf:
+            pdf_page = pdf.pages[page - 1]
+            width_px = math.ceil(float(pdf_page.width) * dpi / 72)
+            height_px = math.ceil(float(pdf_page.height) * dpi / 72)
+    except Exception as exc:
+        text = str(exc).lower()
+        if "password" in text or "encrypt" in text:
+            raise DocumentError("password_required", "This PDF is encrypted. Raw passwords are not accepted by this service.")
+        raise DocumentError("invalid_document", "PDF page dimensions could not be read.")
+    if (width_px < 1 or height_px < 1 or width_px > MAX_RENDER_SIDE_PIXELS
+            or height_px > MAX_RENDER_SIDE_PIXELS or width_px * height_px > MAX_RENDER_PIXELS):
+        raise DocumentError("render_size_limit_exceeded", "The selected PDF page exceeds the rendered pixel limit.")
     temp = Path(tempfile.mkdtemp(prefix="toolrig-doc-page-"))
     prefix = temp / "page"
     try:
@@ -205,6 +222,13 @@ def _pdf_render(source: Path, page: int, dpi: int = 120) -> Path:
     if proc.returncode != 0 or not rendered.is_file():
         shutil.rmtree(temp, ignore_errors=True)
         raise DocumentError("render_failed", "Poppler could not render the selected PDF page.")
+    try:
+        if rendered.stat().st_size > MAX_RENDER_ARTIFACT_BYTES:
+            shutil.rmtree(temp, ignore_errors=True)
+            raise DocumentError("render_size_limit_exceeded", "The rendered PDF page exceeds the artifact byte limit.")
+    except OSError:
+        shutil.rmtree(temp, ignore_errors=True)
+        raise DocumentError("render_failed", "The rendered PDF page could not be inspected.")
     return rendered
 
 

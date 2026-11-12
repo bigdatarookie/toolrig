@@ -177,6 +177,40 @@ def test_render_reports_native_dependency_state():
         assert result["error"]["code"] == "dependency_missing"
 
 
+def test_pdf_render_rejects_oversized_page_before_poppler_or_artifact(monkeypatch, tmp_path):
+    monkeypatch.setenv("TOOLRIG_DOCUMENT_ARTIFACT_DIR", str(tmp_path))
+    monkeypatch.setattr(service.shutil, "which", lambda name: "/fake/pdftoppm")
+    called = False
+
+    def unexpected_render(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("pdftoppm must not run for a page over the pixel bound")
+
+    monkeypatch.setattr(service, "_run", unexpected_render)
+    result = render_document(FIXTURES / "oversized-page.pdf", pages="1")
+    assert result["ok"] is False
+    assert result["error"]["code"] == "render_size_limit_exceeded"
+    assert called is False
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_pdf_render_rejects_oversized_png_before_artifact_copy(monkeypatch, tmp_path):
+    monkeypatch.setenv("TOOLRIG_DOCUMENT_ARTIFACT_DIR", str(tmp_path))
+    monkeypatch.setattr(service.shutil, "which", lambda name: "/fake/pdftoppm")
+
+    def create_oversized_png(command, **kwargs):
+        with Path(command[-1]).with_suffix(".png").open("wb") as artifact:
+            artifact.truncate(service.MAX_RENDER_ARTIFACT_BYTES + 1)
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(service, "_run", create_oversized_png)
+    result = render_document(FIXTURES / "text.pdf", pages="1")
+    assert result["ok"] is False
+    assert result["error"]["code"] == "render_size_limit_exceeded"
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_large_output_becomes_artifact_with_compact_preview(tmp_path, monkeypatch):
     monkeypatch.setenv("TOOLRIG_DOCUMENT_ARTIFACT_DIR", str(tmp_path))
     result = service._result("read", FIXTURES / "text.pdf", "x" * 25_000)
