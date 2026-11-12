@@ -191,6 +191,8 @@ root_bao write -format=json -f "auth/approle/role/$ROLE/secret-id" |
 chmod 600 "$CONSUMER_CREDENTIALS/role_id" "$CONSUMER_CREDENTIALS/secret_id"
 export TOOLRIG_OPENBAO_AGENT_CREDENTIALS="$CONSUMER_CREDENTIALS"
 export TOOLRIG_OPENBAO_EXPECTED_SHA256="$EXPECTED_SHA256"
+export TOOLRIG_OPENBAO_CONSUMER_UID="$(id -u)"
+export TOOLRIG_OPENBAO_CONSUMER_GID="$(id -g)"
 export TOOLRIG_OPENBAO_COMPOSE_OVERRIDE="$OPENBAO_ROOT/compose.consumer.yaml"
 compose --profile test-consumer run --detach --rm --no-deps --name "$CONSUMER_NAME" consumer >/dev/null
 consumer_logs="$TMP_ROOT/consumer.log"

@@ -4,6 +4,7 @@ services:
     image: docker.io/openbao/openbao:2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
     entrypoint: ["bao"]
     command: ["agent", "-config=/openbao/config/agent.hcl"]
+    user: "${TOOLRIG_OPENBAO_CONSUMER_UID:-100}:${TOOLRIG_OPENBAO_CONSUMER_GID:-1000}"
     depends_on:
       openbao:
         condition: service_healthy

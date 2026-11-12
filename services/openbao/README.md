@@ -40,7 +40,7 @@ services/openbao/bin/openbao test
 
 Secret paths use the KV-v2 form `secret/data/projects/<project>/<service>/<name>`. A consumer policy names an exact path and only the operations it needs. Stable paths survive value rotation; the consumer token and secret ID remain independently revocable. The included Agent template is deliberately restricted to one synthetic test path, `secret/data/toolrig/testing/consumer`; it is not a reusable production grant. Project references and grants must be provisioned only after that project owner names the resource and allowed operation.
 
-The consumer test runs an actual child process under OpenBao Agent process-supervisor mode. It gets a short-lived AppRole identity scoped to the synthetic path, hashes the injected value, and reports only a fixed success marker. A distinct token is denied and another scoped token is revoked and verified denied. The test logs are checked against the synthetic value before cleanup.
+The consumer test runs an actual child process under OpenBao Agent process-supervisor mode. The opt-in consumer runs as the owner UID/GID of its temporary credentials mount, allowing its mode-`0600` AppRole files to remain private on Linux as well as macOS. It gets a short-lived AppRole identity scoped to the synthetic path, hashes the injected value, and reports only a fixed success marker. A distinct token is denied and another scoped token is revoked and verified denied. The test logs are checked against the synthetic value before cleanup.
 
 ## Portability and boundaries
 
