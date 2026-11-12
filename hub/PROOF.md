@@ -195,3 +195,14 @@ The first fixture run exposed an incorrect undefined-vs-null assertion after
 revocation; corrected the assertion to the implemented revoked state. No provider
 inference/thread/turn or actual native queue park occurred. Exact baseline patch,
 launch/deployment contract and residual native proofs: NATIVE-LAUNCH.md.
+
+### Independent PR #10 service-tier finding
+
+QA found that the source guard rejected a configured preserved serviceTier from
+Codex 0.166's client-owned remote resume parameters. A transport fixture first
+reproduced revocation instead of binding for captured tier `fast`. The guard now
+accepts omission or exactly the captured value on resume/turn, and denies changed
+values and explicit clearing of a non-null captured tier. The same-source resume
+response and later thread-settings checks still require the captured tier.
+Author recheck: 11/11 focused native launch tests and 56/56 full suite. This
+correction remains offline source proof; no native seat was resumed or migrated.

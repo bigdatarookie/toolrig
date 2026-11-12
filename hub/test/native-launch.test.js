@@ -33,7 +33,7 @@ function child() {
   p.kill = signal => { p.signalCode = signal; p.emit('exit', null, signal); }; return p;
 }
 async function fixture(t, options = {}) {
-  const spec = plan(t), env = environment(spec), requests = [], backendNotifications = [];
+  const spec = { ...plan(t), ...(options.spec ?? {}) }, env = environment(spec), requests = [], backendNotifications = [];
   const http = createServer();
   const socket = join(spec.cwd, 'engine.sock');
   const wss = new WebSocketServer({ server: http });
@@ -78,7 +78,7 @@ async function fixture(t, options = {}) {
       { headers: token ? { Authorization: 'Bearer ' + token } : {} });
     await once(ws, 'open'); return ws;
   };
-  const attach = async () => {
+  const attach = async (overrides = {}) => {
     const owner = await connect();
     let id = 0;
     const rpc = async (method, params) => {
@@ -90,7 +90,7 @@ async function fixture(t, options = {}) {
     const binding = once(runtime, 'binding');
     owner.send(JSON.stringify({ id: ++id, method: 'thread/resume', params: {
       threadId: spec.threadId, model: null, cwd: null, history: null, path: null, permissions: null,
-      approvalPolicy: null, sandbox: null, config: null, initialTurnsPage: null } }));
+      approvalPolicy: null, sandbox: null, config: null, initialTurnsPage: null, ...overrides } }));
     return { owner, binding, rpc };
   };
   return { spec, runtime, state, connect, attach, requests, backendNotifications, spawned };
@@ -202,4 +202,28 @@ test('effective config drift revokes the owning attachment before snapshot autho
   const source = f.runtime.source(); f.state.config = { changed: true };
   await assert.rejects(source.snapshot(), /account_or_config_drift/);
   assert.equal(f.runtime.valid(), false);
+});
+
+test('captured non-null service tier survives native resume and turn; changed or cleared tiers are denied', async t => {
+  const f = await fixture(t, { spec: { serviceTier: 'fast' } });
+  const outcome = Promise.race([once(f.runtime, 'binding').then(() => 'bound'),
+    once(f.runtime, 'revoked').then(() => 'revoked')]);
+  await f.attach({ serviceTier: 'fast' });
+  assert.equal(await outcome, 'bound');
+  assert(f.requests.includes('thread/resume'));
+  assert.doesNotThrow(() => f.runtime.validateRequest({ id: 42, method: 'turn/start',
+    params: { threadId: f.spec.threadId, serviceTier: 'fast' } }));
+  for (const tier of ['default', null]) {
+    assert.throws(() => f.runtime.validateRequest({ id: 43, method: 'turn/start',
+      params: { threadId: f.spec.threadId, serviceTier: tier } }), /native_tier_override/);
+  }
+});
+test('resume denies changed and explicitly cleared captured tier before forwarding to backend', async t => {
+  const f = await fixture(t, { spec: { serviceTier: 'fast' } });
+  for (const tier of ['default', null]) {
+    assert.throws(() => f.runtime.validateRequest({ id: 42, method: 'thread/resume',
+      params: { threadId: f.spec.threadId, serviceTier: tier } }), /native_tier_override/);
+  }
+  assert(!f.requests.includes('thread/resume'));
+  const { binding } = await f.attach(); await binding; // omission preserves original tier
 });

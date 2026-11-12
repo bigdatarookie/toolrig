@@ -117,16 +117,19 @@ export class NativeSeatRuntime extends EventEmitter {
     if (!Object.hasOwn(m, 'id') || this.pending.has(m.id)) throw new Error('invalid_owner_request');
     if (m.method === 'thread/resume') {
       if (this.binding || [...this.pending.values()].includes('thread/resume') || m.params?.threadId !== s.threadId ||
-          Object.keys(m.params).some(key => m.params[key] != null && !['threadId', 'model', 'modelProvider', 'cwd', 'approvalPolicy', 'sandbox', 'config', 'excludeTurns', 'initialTurnsPage', 'runtimeWorkspaceRoots'].includes(key))) {
+          Object.keys(m.params).some(key => m.params[key] != null && !['threadId', 'model', 'modelProvider', 'cwd', 'approvalPolicy', 'sandbox', 'config', 'excludeTurns', 'initialTurnsPage', 'runtimeWorkspaceRoots', 'serviceTier'].includes(key))) {
         throw new Error('native_resume_scope_mismatch');
       }
-      if (Object.hasOwn(m.params, 'serviceTier')) throw new Error('native_tier_override');
       if (m.params.config && Object.keys(m.params.config).length) throw new Error('native_resume_config_override');
     } else if (!reads.has(m.method)) {
       if (!['turn/start', 'turn/interrupt'].includes(m.method) || !this.valid() || m.params?.threadId !== s.threadId) {
         throw new Error('native_method_not_allowed');
       }
-      if (Object.hasOwn(m.params, 'serviceTier') || ['permissions', 'collaborationMode', 'approvalsReviewer', 'config'].some(key => m.params[key] != null)) throw new Error('native_permissions_override');
+      if (['permissions', 'collaborationMode', 'approvalsReviewer', 'config'].some(key => m.params[key] != null)) throw new Error('native_permissions_override');
+    }
+    // Omitted means preserve; explicit null clears and must match captured null.
+    if (m.params && Object.hasOwn(m.params, 'serviceTier') && !equal(m.params.serviceTier, s.serviceTier)) {
+      throw new Error('native_tier_override');
     }
     const names = { model: s.model, modelProvider: s.modelProvider, cwd: s.cwd,
       approvalPolicy: s.approvalPolicy, sandbox: s.sandboxMode, sandboxPolicy: s.sandbox, effort: s.effort, runtimeWorkspaceRoots: s.runtimeWorkspaceRoots };
