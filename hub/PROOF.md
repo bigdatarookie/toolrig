@@ -206,3 +206,16 @@ values and explicit clearing of a non-null captured tier. The same-source resume
 response and later thread-settings checks still require the captured tier.
 Author recheck: 11/11 focused native launch tests and 56/56 full suite. This
 correction remains offline source proof; no native seat was resumed or migrated.
+
+
+### Infrastructure consumer found pre-capture writes in PR10 adapter seam
+
+The compiled outer wrapper called legacy prepareLaunch before Hub capture. The
+legacy implementation can apply managed config/install a plugin and prepare seat
+or team directories. Thus the earlier "Preparation is pure" claim applied only
+to the isolated Hub helper and was false for the proposed adapter integration.
+The compiled patch is withdrawn, with its failing history retained in PR10 and
+commit57e3540. The Hub now exposes strict synchronous isEnabledFor so the source
+port can branch before writers. Infrastructure must implement/test write-free
+native preparation and fail if no native spec is staged. No such source-port or
+live-purity result is claimed by this helper correction.

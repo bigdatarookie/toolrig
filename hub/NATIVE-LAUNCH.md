@@ -12,13 +12,26 @@ and seat-command hooks. Without injection or with `enabledFor(nodeId) === false`
 launch remains embedded. Opt-in supports native **resume only**. Fresh/fork and
 custom `-p` config profiles are rejected. Unknown config overrides fail closed.
 
-`integration/codex-runtime-adapter.patch` is an unapplied source artifact against
-the exact installed OpenRig 0.7.7 compiled adapter identified by baseline.json.
-It adds the optional dependency and wraps both successful prepare paths, then
-branches resumeCore/seatCommand only for a prepared native spec. It is not an
-installer or permission to modify an installed package. Infrastructure must
-port these small seams to its managed OpenRig source/build, preserving its
-existing readiness/native-resume proof and disabled behavior.
+The PR10 compiled `integration/codex-runtime-adapter.patch` has been withdrawn:
+Infrastructure found it called legacy prepareLaunch before captureOriginal, so
+applyManagedConfig and directory callbacks could write before original capture.
+Its exact failing bytes remain in PR10/commit57e3540 history; baseline.json records
+the inspected version only. It must not be used as an integration/deployment patch.
+
+The source port must select `hooks.isEnabledFor(nodeId)` BEFORE any managed config,
+plugin install or generated-directory preparation. It is a strict synchronous
+boolean; unknown/async selection fails. Only disabled mode takes the unchanged
+legacy path. Selected mode derives preserved preparation without config/home/
+directory writes, then invokes capture/prepare and REQUIRES a native spec; errors,
+missing capture or an unstaged result must fail without fallback. Reject custom
+profiles/fresh/fork before any probes. Audit purported read-only callbacks for
+side effects; do not substitute generated/default roots for captured roots.
+Infrastructure owns actual source port and real adapter tests, not another relay.
+Source target: /Users/garry/Documents/git/openrig-runtime-native-launch, baseline
+f3d8bac4, packages/daemon/src/adapters/codex-runtime-adapter.ts plus startup.ts and
+index.ts. Generic optional hooks propagate startServer -> createDaemon -> adapter;
+a Toolrig composition root consumes the local Hub ESM. There is no existing
+startup loader or implemented original-owner capture/resolver in PR10.
 
 Infrastructure supplies `NativeLaunchHooks` through the adapter's optional deps:
 
@@ -42,7 +55,9 @@ wrapper prefix from the existing daemon resolver. Original-owner shutdown and
 safe-boundary authorization remain deployment responsibilities, not inferred
 from absence of a file. Unknown original settings must stop the attempt.
 
-Preparation is pure. The supervisor command contains metadata only, runs inside
+Hub staging is metadata-only; injected owner capture/resolution must also be read-only.
+The OpenRig native preparation path is not proven pure until its source port
+skips legacy writers and passes the adapter checks described above. The supervisor command contains metadata only, runs inside
 the existing SeatLaunchEnvironment identity/generation/PATH wrapper, and inherits
 provider credentials in the pane. It omits the writer's `codexCwd` rewrite because
 that path only accepts a command starting with `codex `; absolute Codex executable
@@ -102,7 +117,7 @@ proofs; they do not attest a production native TUI or useful continuation.
 Independent QA reviews exact head and macOS/Ubuntu CI. After source acceptance,
 Infrastructure owns the single downstream deployment attempt:
 
-1. Build/package the optional adapter seams from this exact candidate in a
+1. Implement/review the corrected source port and package its optional seams in a
    recoverable managed source checkout. Keep disabled default. Verify native
    CLI version/flags and original-owner observation contract. Do not hot-patch
    running dist files or edit private provider state.
