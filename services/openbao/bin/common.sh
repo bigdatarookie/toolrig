@@ -34,7 +34,10 @@ require_bootstrap() {
     printf 'bootstrap recovery file is absent: %s\n' "$OPENBAO_BOOTSTRAP_FILE" >&2
     return 1
   fi
-  if [[ "$(stat -f '%Lp' "$OPENBAO_BOOTSTRAP_FILE" 2>/dev/null || stat -c '%a' "$OPENBAO_BOOTSTRAP_FILE")" != "600" ]]; then
+  local mode
+  mode="$(stat -c '%a' "$OPENBAO_BOOTSTRAP_FILE" 2>/dev/null)" ||
+    mode="$(stat -f '%Lp' "$OPENBAO_BOOTSTRAP_FILE")"
+  if [[ "$mode" != "600" ]]; then
     printf 'bootstrap recovery file must have mode 0600\n' >&2
     return 1
   fi

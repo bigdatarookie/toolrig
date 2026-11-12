@@ -12,6 +12,14 @@ test -x "$openbao_root/bin/consumer-check"
 test -f "$openbao_root/tests/integration.sh"
 grep -q 'down does not accept Compose arguments' "$openbao_root/bin/openbao"
 
+mode_test_dir="$(mktemp -d "${TMPDIR:-/tmp}/toolrig-openbao-mode-test.XXXXXX")"
+trap 'rm -rf "$mode_test_dir"' EXIT
+: >"$mode_test_dir/bootstrap.json"
+chmod 600 "$mode_test_dir/bootstrap.json"
+TOOLRIG_OPENBAO_RECOVERY_DIR="$mode_test_dir" bash -c 'source "$1/bin/common.sh"; require_bootstrap' _ "$openbao_root"
+rm -rf "$mode_test_dir"
+trap - EXIT
+
 config_json="$("$openbao_root/bin/openbao" config --format json)"
 CONFIG_JSON="$config_json" python3 - <<'PY'
 import json
