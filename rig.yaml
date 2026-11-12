@@ -1,0 +1,155 @@
+# Toolrig v0.1: user-authorized launch; service migrations remain separately scoped.
+version: "0.2"
+name: toolrig
+summary: Shared tool hub and host infrastructure; launch authorized
+culture_file: CULTURE.md
+permission_policy: builtin:yolo
+env:
+  CODEX_HOME: /Users/garry/.codex-opentour
+workspace:
+  workspace_root: .
+  repos:
+    - name: toolrig
+      path: .
+      kind: project
+  default_repo: toolrig
+startup:
+  files:
+    - path: guidance/common.md
+      delivery_hint: guidance_merge
+      required: true
+  actions: []
+pods:
+  - id: coordination
+    label: coordination
+    members:
+      - id: lead
+        label: "coordination.lead"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/orchestration/orchestrator"
+        profile: default
+        runtime: codex
+        model: gpt-6-luna
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/coordination-lead.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+      - id: support
+        label: "Support"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/research/analyst"
+        profile: default
+        runtime: codex
+        model: gpt-6.1-sol
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/coordination-support.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+    edges:
+      - kind: collaborates_with
+        from: lead
+        to: support
+  - id: tools
+    label: tools
+    members:
+      - id: hub
+        label: "tools.hub"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/development/implementer"
+        profile: default
+        runtime: codex
+        model: gpt-6.1-sol
+        effort: medium
+        cwd: .
+        startup:
+          files:
+            - path: guidance/tools-hub.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+      - id: automation
+        label: "tools.automation"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/development/implementer"
+        profile: default
+        runtime: codex
+        model: gpt-6-luna
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/tools-automation.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+    edges: []
+  - id: infrastructure
+    label: infrastructure
+    members:
+      - id: engineer
+        label: "infrastructure.engineer"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/development/implementer"
+        profile: default
+        runtime: codex
+        model: gpt-6-luna
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/infrastructure-engineer.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+      - id: secrets
+        label: "infrastructure.secrets"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/development/implementer"
+        profile: default
+        runtime: codex
+        model: gpt-6-luna
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/infrastructure-secrets.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+    edges: []
+  - id: verification
+    label: verification
+    members:
+      - id: qa
+        label: "verification.qa"
+        agent_ref: "path:/Users/garry/.local/node-v24.22.1-darwin-arm64/lib/node_modules/@openrig/cli/daemon/specs/agents/review/independent-reviewer"
+        profile: default
+        runtime: codex
+        model: gpt-6-luna
+        effort: high
+        cwd: .
+        startup:
+          files:
+            - path: guidance/verification-qa.md
+              delivery_hint: send_text
+              required: true
+          actions: []
+    edges: []
+edges:
+  - kind: delegates_to
+    from: coordination.lead
+    to: tools.hub
+  - kind: delegates_to
+    from: coordination.lead
+    to: tools.automation
+  - kind: delegates_to
+    from: coordination.lead
+    to: infrastructure.engineer
+  - kind: delegates_to
+    from: coordination.lead
+    to: infrastructure.secrets
+  - kind: delegates_to
+    from: coordination.lead
+    to: verification.qa
