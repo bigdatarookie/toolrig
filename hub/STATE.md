@@ -15,7 +15,8 @@ node /ABS/TOOLRIG/hub/src/state-cli.js --rig toolrig --project toolrig --filter 
 
 Add `--seat tools-hub@toolrig` for one destination; `--filter all` retains terminal
 records in the baseline. Explicit project matches a native `project:<value>`
-tag OR `targetRepo`. It is not a guessed working-directory/project membership.
+tag OR `targetRepo`. Native legacy `tags:null` means no tags; only explicit
+`targetRepo` can then match the project. Missing/malformed tags remain invalid. It is not a guessed working-directory/project membership.
 Seats are rig context, not asserted project membership. Optional seat narrows
 both returned seats and assigned tasks. Immediate parent is native handedOffFrom;
 higher chain is not read. Summary is native metadata, bounded to200 characters
@@ -63,7 +64,9 @@ status=partial, changed=null, no delta or cursor advancement. Known partial
 baseline remains inspectable; prior cursor remains usable. A cache failure also
 cannot claim unchanged. Missing/expired/incompatible/corrupt cursor produces
 reset_required and a fresh baseline on a complete read. CLI exit0=ok,2=partial,
-1=invalid request/identity/scope failure. Raw stderr/payload errors are not echoed.
+1=invalid request/identity/scope failure. Raw stderr/payload errors are not echoed. Queue validation reports a fixed
+field-class error code (such as queue_invalid_tags or queue_not_body_free),
+never an offending ID, value, summary or body.
 
 ## Cursor cache
 

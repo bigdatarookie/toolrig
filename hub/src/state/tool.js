@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { CursorCache } from './cache.js';
 import { sourceCommands, readSource, runRig } from './native.js';
-import { requestSchema, schemaVersion, tasksFrom, seatsFrom, select, canonical, delta } from './projection.js';
+import { requestSchema, schemaVersion, queueErrorCodes, tasksFrom, seatsFrom, select, canonical, delta } from './projection.js';
 export class StateTool {
   constructor({ run = runRig, clock = Date.now, cache = new CursorCache(process.env.TOOLRIG_STATE_CACHE_DIR ?? join(homedir(), '.cache/toolrig/state-v1')) } = {}) {
     Object.assign(this, { run, clock, cache });
@@ -26,7 +26,7 @@ export class StateTool {
     const errors = sources.filter(s => !s.ok).map(s => s.name + ':' + s.error);
     const all = { seats: {}, tasks: {} };
     try { if (seats.receipt.ok) all.seats = seatsFrom(seats.value); } catch { errors.push('seats:schema_invalid'); }
-    try { if (queue.receipt.ok) all.tasks = tasksFrom(queue.value, scope); } catch { errors.push('queue:schema_invalid_or_not_body_free'); }
+    try { if (queue.receipt.ok) all.tasks = tasksFrom(queue.value, scope); } catch (error) { errors.push('queue:' + (queueErrorCodes.has(error.message) ? error.message : 'schema_invalid_or_not_body_free')); }
     if (seats.value?.truncated || seats.value?.entries?.length < seats.value?.totalNodes) errors.push('seats:truncated');
     if (Array.isArray(queue.value) && queue.value.length >= 1000) errors.push('queue:limit_reached; history_coverage_unknown');
     if (typeof version.value !== 'string' || !/^\d+\.\d+\.\d+/.test(version.value)) errors.push('version:unknown');
