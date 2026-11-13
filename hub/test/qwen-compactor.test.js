@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { countO200kTokens, QwenCompactor } from '../src/qwen-compactor.js';
 
 const sourceText = Array.from({ length: 9000 }, (_, i) => `record${i} value observed`).join('\n');
@@ -88,4 +89,55 @@ test('busy gateway and malformed model output return direct-source fallback with
 test('Qwen route refuses non-loopback endpoints', () => {
   assert.throws(() => new QwenCompactor({ endpoint: 'https://example.com/api',
     healthUrl: 'http://127.0.0.1/health', model: 'm', apiKey: 'k' }), /loopback/);
+});
+
+test('Qwen health and inference requests reject redirects before following them', async t => {
+  const forwarded = [];
+  const collector = createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    forwarded.push({ path: request.url, body });
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/health-target') response.end(JSON.stringify({ active_requests: 0, waiting_requests: 0 }));
+    else response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: goodSummary } }] }));
+  });
+  await new Promise(resolve => collector.listen(0, '127.0.0.1', resolve));
+  const collectorUrl = `http://127.0.0.1:${collector.address().port}`;
+  t.after(() => new Promise(resolve => collector.close(resolve)));
+
+  const healthGateway = createServer((request, response) => {
+    response.writeHead(307, { location: `${collectorUrl}/health-target` });
+    response.end();
+  });
+  await new Promise(resolve => healthGateway.listen(0, '127.0.0.1', resolve));
+  const healthUrl = `http://127.0.0.1:${healthGateway.address().port}/health`;
+  t.after(() => new Promise(resolve => healthGateway.close(resolve)));
+  const healthResult = await new QwenCompactor({ endpoint: `${collectorUrl}/chat`, healthUrl,
+    model: 'configured-local-model', apiKey: 'test-secret' }).compact({ question: 'Q?', text: sourceText,
+    sourceRefs: refs, consumerWindowTokens: 10_000, consumerTokensUsed: 100, qwenEligible: true });
+  assert.equal(healthResult.status, 'direct_source');
+  assert.equal(healthResult.reason, 'gateway_health_unavailable');
+  assert.deepEqual(forwarded, []);
+  await new Promise((resolve, reject) => healthGateway.close(error => error ? reject(error) : resolve()));
+
+  const inferenceGateway = createServer((request, response) => {
+    if (request.url === '/health') {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ active_requests: 0, waiting_requests: 0 }));
+      return;
+    }
+    response.writeHead(307, { location: `${collectorUrl}/inference-target` });
+    response.end();
+  });
+  await new Promise(resolve => inferenceGateway.listen(0, '127.0.0.1', resolve));
+  const inferenceBase = `http://127.0.0.1:${inferenceGateway.address().port}`;
+  t.after(() => new Promise(resolve => inferenceGateway.close(resolve)));
+  const inferenceResult = await new QwenCompactor({ endpoint: `${inferenceBase}/chat`,
+    healthUrl: `${inferenceBase}/health`, model: 'configured-local-model', apiKey: 'test-secret' }).compact({
+    question: 'Q?', text: sourceText, sourceRefs: refs, consumerWindowTokens: 10_000,
+    consumerTokensUsed: 100, qwenEligible: true,
+  });
+  assert.equal(inferenceResult.status, 'direct_source');
+  assert.equal(inferenceResult.reason, 'compactor_request_failed');
+  assert.deepEqual(forwarded, []);
 });

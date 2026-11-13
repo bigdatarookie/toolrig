@@ -135,7 +135,10 @@ export class QwenCompactor {
 
     let health;
     try {
-      const response = await this.fetchImpl(this.healthUrl, { signal: AbortSignal.timeout(this.healthTimeoutMs) });
+      const response = await this.fetchImpl(this.healthUrl, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(this.healthTimeoutMs),
+      });
       if (!response.ok) return fallback('gateway_health_unavailable', sourceTokens,
         Math.round(performance.now() - start));
       health = await response.json();
@@ -155,6 +158,7 @@ export class QwenCompactor {
     try {
       response = await this.fetchImpl(this.endpoint, {
         method: 'POST',
+        redirect: 'error',
         headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           model: this.model,
