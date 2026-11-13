@@ -8,7 +8,7 @@ try {
     filter: { states: values.filter, ...(values.seat ? { seat: values.seat } : {}) },
     ...(values.cursor !== undefined ? { cursor: values.cursor } : {}) });
   console.log(JSON.stringify(result));
-  if (result.status !== 'ok') process.exitCode = 2;
+  if (result.status === 'partial') process.exitCode = 2;
 } catch (error) {
   console.error(JSON.stringify({ status: 'error', error: ['native_consumer_identity_unavailable',
     'scope_not_supported_for_native_consumer'].includes(error.message) ? error.message : 'invalid_request_or_source_failure',

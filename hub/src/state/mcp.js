@@ -10,7 +10,7 @@ export function registerStateTool(server, tool = new StateTool()) {
     try {
       const result = await tool.snapshot(args);
       return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result,
-        ...(result.status !== 'ok' ? { isError: true } : {}) };
+        ...(result.status === 'partial' ? { isError: true } : {}) };
     } catch {
       return { isError: true, content: [{ type: 'text', text: 'state_read_failed: verify native consumer identity, own rig, project/filter and source coverage' }] };
     }

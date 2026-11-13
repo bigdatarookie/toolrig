@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, readdirSync, writeFileSync, unlinkSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { StateTool } from '../src/state/tool.js';
 import { CursorCache } from '../src/state/cache.js';
 import { sourceCommands } from '../src/state/native.js';
@@ -38,8 +41,8 @@ test('baseline -> unchanged ignores observation churn, exposes freshness and use
   f.data.seats.entries[0].agentActivity.sampledAt = 'new sample';
   const b = await f.snap(a.cursor);
   assert.equal(b.changed, false); assert.equal(b.baseline, undefined); assert.equal(b.delta, undefined);
-  assert.equal(b.coverage.atomic, false); assert.equal(b.cost.nativeCalls, 4);
-  assert.equal(b.consumer, 'owner@fixture');
+  assert.equal(b.coverage.atomic, false); assert.equal(a.cost.nativeCalls, 4);
+  assert.deepEqual(Object.keys(b).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
   assert(f.calls.some(a => a.join(' ') === sourceCommands.queue.join(' ')));
   assert(f.calls.every(a => !a.includes('--full') && !a.includes('capture') && !a.includes('show')));
 });
@@ -145,4 +148,24 @@ test('corrupt comparison cache resets instead of authorizing an unchanged claim'
   const entry = JSON.parse(readFileSync(path, 'utf8')); entry.selected.tasks = {};
   writeFileSync(path, JSON.stringify(entry));
   assert.equal((await f.snap(a.cursor)).reset_required, true);
+});
+
+test('successful compact unchanged CLI read exits zero without status/source/cost envelope', async t => {
+  const f = setup(t);
+  writeFileSync(join(f.root, 'rig'), `#!/usr/bin/env node
+const a=process.argv.slice(2);let result;
+if(a[0]==='whoami')result={identity:{rigName:'fixture',sessionName:'owner@fixture'}};
+else if(a[0]==='--version'){console.log('0.7.7 (fixture)');process.exit(0);}
+else if(a[0]==='ps')result={entries:[],totalNodes:0,truncated:false};
+else if(a[0]==='queue')result=[];
+else process.exit(1);
+console.log(JSON.stringify(result));`, { mode: 0o700 });
+  const exec = promisify(execFile), args = [fileURLToPath(new URL('../src/state-cli.js', import.meta.url)),
+    '--rig','fixture','--project','project','--filter','active'];
+  const opts = { env: { ...process.env, PATH: f.root + ':' + process.env.PATH,
+    TOOLRIG_STATE_CACHE_DIR: join(f.root,'cli-cache') } };
+  const first = JSON.parse((await exec(process.execPath, args, opts)).stdout);
+  const second = JSON.parse((await exec(process.execPath, [...args,'--cursor',first.cursor], opts)).stdout);
+  assert.equal(second.changed, false);
+  assert.deepEqual(Object.keys(second).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
 });

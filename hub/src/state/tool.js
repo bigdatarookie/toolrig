@@ -61,6 +61,7 @@ export class StateTool {
       (t.closure || t.handoff || t.humanGate || ['done', 'canceled', 'failed', 'denied', 'handed-off'].includes(t.state)) &&
       canonical(t) !== canonical(previous.entry.allTasks[t.id]));
     const changed = Boolean(changes.added.length || changes.changed.length || changes.removed.length || critical.length);
-    return { ...base, changed, cursor: next, ...(changed ? { delta: changes, critical } : {}) };
+    if (!changed) return { changed: false, observedAt: base.observedAt, coverage, cursor: next };
+    return { ...base, changed: true, cursor: next, delta: changes, critical };
   }
 }

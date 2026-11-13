@@ -41,7 +41,9 @@ status are explicit separate consumer actions, not executed by this tool.
 
 Baseline includes observedAt/sources/coverage and an opaque cursor. Subsequent
 same-scope reads produce added/changed/removed field differences; unchanged
-returns changed=false with cursor/freshness/coverage. Removed means absent from
+returns ONLY changed=false, observedAt, coverage and cursor. Source/cost/status
+envelopes remain on baseline, delta and partial paths; transport exit0 and MCP
+success do not require a status field on the compact unchanged response. Removed means absent from
 the selected projection, NEVER confirmed native deletion. Active-filter departures
 and newly observed terminal/handoff/source-tagged human-gate records also appear
 in critical. Human intent or a tag alone is not proof of a real human destination;

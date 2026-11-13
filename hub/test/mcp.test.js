@@ -123,6 +123,8 @@ console.log(JSON.stringify(r));`, { mode: 0o700 });
     assert.equal(first.structuredContent.status, 'ok');
     const second = await client.callTool({ name: 'state_snapshot', arguments: {
       rig: 'fixture', project: 'fixture', filter: { states: 'active' }, cursor: first.structuredContent.cursor } });
-    assert.equal(second.structuredContent.changed, false); assert.equal(existsSync(db), false);
+    assert.equal(second.structuredContent.changed, false); assert.notEqual(second.isError, true);
+    assert.deepEqual(Object.keys(second.structuredContent).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
+    assert.equal(existsSync(db), false);
   } finally { await client.close(); }
 });
