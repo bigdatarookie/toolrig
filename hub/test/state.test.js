@@ -169,3 +169,29 @@ console.log(JSON.stringify(result));`, { mode: 0o700 });
   assert.equal(second.changed, false);
   assert.deepEqual(Object.keys(second).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
 });
+test('supported nullable native tags do not poison project projection; exact targetRepo still matches', async t => {
+  const f = setup(t);
+  // Installed native QueueRepository.rowToItem returns tags:null for absent
+  // legacy tags. Compact mode preserves this metadata field, without bodies.
+  f.data.queue.push(task('legacy-unrelated', { tags: null, targetRepo: null }));
+  f.data.queue.push(task('legacy-project', { tags: null, targetRepo: 'project' }));
+  const a = await f.snap();
+  assert.equal(a.status, 'ok');
+  assert.deepEqual(Object.keys(a.baseline.tasks).sort(), ['a', 'legacy-project']);
+  const b = await f.snap(a.cursor); assert.equal(b.changed, false);
+  f.data.queue.find(q => q.qitemId === 'legacy-project').state = 'failed';
+  const c = await f.snap(b.cursor); assert.equal(c.critical[0].id, 'legacy-project'); assert.equal(c.critical[0].state, 'failed');
+});
+test('nullable-tags compatibility does not accept malformed tags or bypass body-free safety', async t => {
+  const f = setup(t);
+  for (const tags of [undefined, 'not-an-array', [1]]) {
+    f.data.queue = [task('invalid', { tags })];
+    const invalid = await f.snap(); assert.equal(invalid.status, 'partial');
+    assert(invalid.coverage.errors.includes('queue:queue_invalid_tags'));
+  }
+  f.data.queue = [task('body-present', { tags: null, targetRepo: 'project', body: 'DO_NOT_RETURN' })];
+  const bad = await f.snap(); assert.equal(bad.status, 'partial');
+  assert(bad.coverage.errors.includes('queue:queue_not_body_free'));
+  assert(!JSON.stringify(bad).includes('DO_NOT_RETURN'));
+  assert(!JSON.stringify(bad).includes('body-present'));
+});

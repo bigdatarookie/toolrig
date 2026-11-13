@@ -1,6 +1,9 @@
 import { z } from 'zod';
 export const schemaVersion = 'toolrig-state/1';
 export const states = ['pending', 'in-progress', 'blocked', 'done', 'canceled', 'handed-off', 'failed', 'denied'];
+export const queueErrorCodes = new Set(['queue_not_array', 'queue_invalid_id', 'queue_duplicate_id',
+  'queue_invalid_owner', 'queue_invalid_state', 'queue_invalid_tags', 'queue_invalid_timestamps',
+  'queue_invalid_optional_metadata', 'queue_not_body_free']);
 export const active = ['pending', 'in-progress', 'blocked'];
 const text = z.string().min(1).max(500);
 export const requestSchema = z.strictObject({ rig: text, project: text,
@@ -9,16 +12,21 @@ export const requestSchema = z.strictObject({ rig: text, project: text,
 const stamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const nullText = v => typeof v === 'string' ? v : null;
 export function tasksFrom(raw, scope) {
-  if (!Array.isArray(raw)) throw new Error('queue_schema_invalid');
+  if (!Array.isArray(raw)) throw new Error('queue_not_array');
   const ids = new Set();
   const tasks = raw.map(q => {
-    if (!q || typeof q.qitemId !== 'string' || !q.qitemId || ids.has(q.qitemId) || typeof q.destinationSession !== 'string' ||
-        !states.includes(q.state) || !Array.isArray(q.tags) || !q.tags.every(t => typeof t === 'string') ||
-        !stamp(q.tsCreated) || !stamp(q.tsUpdated)) throw new Error('queue_schema_invalid');
+    if (!q || typeof q.qitemId !== 'string' || !q.qitemId) throw new Error('queue_invalid_id');
+    if (ids.has(q.qitemId)) throw new Error('queue_duplicate_id');
+    if (typeof q.destinationSession !== 'string') throw new Error('queue_invalid_owner');
+    if (!states.includes(q.state)) throw new Error('queue_invalid_state');
+    // Native QueueRepository.rowToItem explicitly returns null for absent
+    // legacy tags. Null is absence, not an untyped string or a guessed project.
+    if (q.tags !== null && (!Array.isArray(q.tags) || !q.tags.every(t => typeof t === 'string'))) throw new Error('queue_invalid_tags');
+    if (!stamp(q.tsCreated) || !stamp(q.tsUpdated)) throw new Error('queue_invalid_timestamps');
     ids.add(q.qitemId);
-    if (['blockedOn', 'handedOffTo', 'handedOffFrom', 'sourceSession', 'summary', 'closureReason', 'closureTarget', 'humanIntent'].some(key => q[key] != null && typeof q[key] !== 'string')) throw new Error('queue_schema_invalid');
+    if (['blockedOn', 'handedOffTo', 'handedOffFrom', 'sourceSession', 'summary', 'closureReason', 'closureTarget', 'humanIntent'].some(key => q[key] != null && typeof q[key] !== 'string')) throw new Error('queue_invalid_optional_metadata');
     if (Object.hasOwn(q, 'body') || Object.hasOwn(q, 'humanDetail')) throw new Error('queue_not_body_free');
-    return q;
+    return { ...q, tags: q.tags ?? [] };
   }).filter(q => q.tags.includes('project:' + scope.project) || q.targetRepo === scope.project);
   const owners = new Map(raw.map(q => [q.qitemId, q.destinationSession]));
   return Object.fromEntries(tasks.map(q => [q.qitemId, {
