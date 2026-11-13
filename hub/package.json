@@ -1,6 +1,6 @@
 {
   "name": "@toolrig/hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -10,7 +10,8 @@
     "test": "node --test",
     "status": "node src/cli.js status",
     "mcp": "node src/mcp.js",
-    "state": "node src/state-cli.js"
+    "state": "node src/state-cli.js",
+    "d": "node src/d-cli.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -18,5 +19,24 @@
     "js-tiktoken": "1.0.21",
     "ws": "8.22.2",
     "zod": "4.6.7"
-  }
+  },
+  "exports": {
+    "./machine": "./src/d/machine.js",
+    "./native-queue": "./src/d/native-queue.js",
+    "./receipts": "./src/d/receipts.js",
+    "./task-trace": "./src/d/task-trace.js",
+    "./state": "./src/state/tool.js",
+    "./native-runtime": "./src/native-runtime.js",
+    "./native-hooks": "./src/native-hooks.js"
+  },
+  "bin": {
+    "toolrig-d": "./src/d-cli.js",
+    "toolrig-state": "./src/state-cli.js"
+  },
+  "files": [
+    "src",
+    "STATE.md",
+    "D-PRIMITIVES.md",
+    "CI_DIGEST.md"
+  ]
 }
