@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,7 +41,7 @@ test('SDK MCP discovery and call share same service; caller cannot supply home/i
         TOOLRIG_GITHUB_API_URL: 'https://api.github.com', TOOLRIG_CI_CACHE_DIR: join(dir, 'ci-cache'), GH_TOKEN: '', GITHUB_TOKEN: '',
       } }));
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'ci_digest']);
+    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'ci_digest', 'state_snapshot']);
     const response = await client.callTool({ name: 'availability_status', arguments: {} });
     assert.equal(response.structuredContent.buckets.codex.windows[0].remainingPercent, 5);
     assert.equal(response.structuredContent.consumer, 'consumer@toolrig');
@@ -146,4 +146,32 @@ test('provider spawn failure and bounded timeout return codes, never raw provide
   const hang = join(dir, 'hang');
   writeFileSync(hang, '#!/usr/bin/env node\nsetInterval(()=>{},1000);', { mode: 0o700 });
   await assert.rejects(new CodexReader(dir, { binary: hang, timeoutMs: 100 }).read(), /provider_unavailable/);
+});
+
+test('state SDK tool shares deterministic projection and does not initialize availability metadata', async t => {
+  const { dir } = fixture(t), db = join(dir, 'must-stay-absent', 'availability.sqlite');
+  writeFileSync(join(dir, 'rig'), `#!/usr/bin/env node
+const a=process.argv.slice(2);let r;
+if(a[0]==='whoami')r={identity:{rigName:'fixture',sessionName:'owner@fixture'}};
+else if(a[0]==='--version'){console.log('0.7.7 (fixture)');process.exit(0);}
+else if(a[0]==='ps')r={entries:[],totalNodes:0,truncated:false};
+else if(a[0]==='queue')r=[];
+else process.exit(1);
+console.log(JSON.stringify(r));`, { mode: 0o700 });
+  const client = new Client({ name: 'state-consumer', version: '1' });
+  try {
+    await client.connect(new StdioClientTransport({ command: process.execPath,
+      args: [fileURLToPath(new URL('../src/mcp.js', import.meta.url))], env: {
+        ...process.env, PATH: dir + ':' + process.env.PATH, TOOLRIG_STATE_CACHE_DIR: join(dir, 'state-cache'), CODEX_HOME: dir,
+        TOOLRIG_AVAILABILITY_DB: db, TOOLRIG_DOCUMENTS_CLI: '', TOOLRIG_DOCUMENTS_ROOT: '',
+      } }));
+    const first = await client.callTool({ name: 'state_snapshot', arguments: {
+      rig: 'fixture', project: 'fixture', filter: { states: 'active' } } });
+    assert.equal(first.structuredContent.status, 'ok');
+    const second = await client.callTool({ name: 'state_snapshot', arguments: {
+      rig: 'fixture', project: 'fixture', filter: { states: 'active' }, cursor: first.structuredContent.cursor } });
+    assert.equal(second.structuredContent.changed, false); assert.notEqual(second.isError, true);
+    assert.deepEqual(Object.keys(second.structuredContent).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
+    assert.equal(existsSync(db), false);
+  } finally { await client.close(); }
 });

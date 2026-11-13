@@ -9,7 +9,8 @@
   "scripts": {
     "test": "node --test",
     "status": "node src/cli.js status",
-    "mcp": "node src/mcp.js"
+    "mcp": "node src/mcp.js",
+    "state": "node src/state-cli.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
