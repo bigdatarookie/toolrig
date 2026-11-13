@@ -69,6 +69,78 @@ Without both variables the Hub does not advertise document tools. Stdio still
 runs with the launching OS user's authority; a configured root is an adapter
 boundary, not an OS sandbox against other processes running as that user.
 
+## CI error digest
+
+The Hub also exposes `ci_digest` over the same implementation as the CLI. It
+reads a GitHub Actions run, its exact attempt and jobs, failed step names,
+structured check annotations, and at most 512 KiB of a failed job log when the
+annotation does not identify a specific error. It never reruns, cancels, edits,
+or merges a workflow. Running jobs are refreshed on every call. An explicit
+older attempt, a run associated with a different PR head, or a missing selected
+job is reported as stale/partial rather than current success.
+
+Run it from this directory:
+
+```sh
+node src/ci-digest-cli.js digest --repo owner/name --run 123456789 --attempt 1
+node src/ci-digest-cli.js digest --repo owner/name --run 123456789 --pr 42 --json
+```
+
+The `ci_digest` MCP tool accepts `repository`, `run_id`, and optional `attempt`,
+`job_id`, and `pull_request`. Set `GH_TOKEN` or `GITHUB_TOKEN` in the Hub's
+trusted launch environment when the repository requires authentication; tokens
+are never accepted as tool arguments or returned in the result. `TOOLRIG_GITHUB_API_URL`
+is an optional HTTPS API base override for compatible GitHub installations.
+The service does not make an unauthenticated HTTP listener.
+
+Results distinguish queued, running, success, failure, canceled, skipped, and
+unknown states. Unknown log formats remain `UNKNOWN` with the job URL for
+expansion; the digest does not infer a cause from an exit code. Exact duplicate
+findings are grouped with a count and bounded source references. Excerpts are
+bounded and redact common token, private-key, password, and email patterns;
+redaction is best effort, so consumers should continue treating logs as
+untrusted input. Raw logs are never cached. Sanitized final findings may be
+cached under `TOOLRIG_CI_CACHE_DIR` (defaults to `~/.cache/toolrig/ci-digest`)
+with owner-only directory/file permissions. Cache identity includes repository,
+run, attempt, head SHA, job, check run, and completion time.
+
+Jobs and check annotations follow GitHub's `Link` pagination, with a maximum of
+10 pages × 100 entries per endpoint. Pagination links must stay on the
+configured API origin. If a page is omitted, malformed, repeats, or the API's
+reported job count exceeds the returned pages, `partial` is true and the
+coverage fields report that the attempt or annotations are incomplete. The
+service never silently treats the first page as the whole run.
+
+One digest call also caps all REST requests at 100 and all response bodies
+(including logs) at 20 MiB total. When either budget is exhausted, further
+failed-job diagnostics are marked `skipped_operation_budget`, coverage is
+partial, and the result reports the consumed budget. These limits bound work
+across the whole run, not just each endpoint or log individually. Cache format
+version 2 invalidates findings written before annotation pagination was added.
+
+Metrics report API call count, fetched response bytes, digest JSON bytes,
+elapsed time, cache hits, and a rough output-token estimate (UTF-8 bytes ÷ 4,
+not provider billing). This describes the digest result, not whole-rig model
+usage or API bandwidth savings.
+
+Real read-only consumer evidence, 2026-11-13: `bigdatarookie/toolrig` run
+`43283369853`, attempt 1, head
+`b9fdeca54374761bb5593012cdde94ef74163ac9`,
+[run link](https://github.com/bigdatarookie/toolrig/actions/runs/43283369853).
+The digest returned failure, kept the successful Ubuntu and failed macOS jobs,
+identified failed step `Run npm test` and its structured annotation, and marked
+job logs `permission_denied`; it did not invent a test cause. Without changing
+credentials, a same-run raw REST baseline fetched four endpoint bodies totaling
+18,322 bytes, while the current JSON digest is 2,362 bytes (87.11% fewer consumer-facing
+bytes than those raw bodies); both paths made four calls. This is a payload
+comparison, not a network-call or full-log token-savings claim. The inaccessible
+raw log means the actual failing test detail and any comparison against full-log
+input remain unmeasured. Invocation used:
+
+```sh
+env GH_TOKEN= GITHUB_TOKEN= node src/ci-digest-cli.js digest --repo bigdatarookie/toolrig --run 43283369853 --attempt 1 --json
+```
+
 ## Permitted pool and policy
 
 The registry starts empty. Observing an account does not grant permission to

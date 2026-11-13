@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,9 +38,10 @@ test('SDK MCP discovery and call share same service; caller cannot supply home/i
         ...process.env, PATH: dir + ':' + process.env.PATH, CODEX_HOME: dir,
         TOOLRIG_AVAILABILITY_DB: join(dir, 'state.sqlite'), OPENRIG_SESSION_NAME: 'consumer@toolrig',
         TOOLRIG_DOCUMENTS_CLI: '', TOOLRIG_DOCUMENTS_ROOT: '',
+        TOOLRIG_GITHUB_API_URL: 'https://api.github.com', TOOLRIG_CI_CACHE_DIR: join(dir, 'ci-cache'), GH_TOKEN: '', GITHUB_TOKEN: '',
       } }));
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'state_snapshot']);
+    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'ci_digest', 'state_snapshot']);
     const response = await client.callTool({ name: 'availability_status', arguments: {} });
     assert.equal(response.structuredContent.buckets.codex.windows[0].remainingPercent, 5);
     assert.equal(response.structuredContent.consumer, 'consumer@toolrig');
@@ -50,6 +52,51 @@ test('SDK MCP discovery and call share same service; caller cannot supply home/i
       model: 'other', effort: 'high', affectedCohort: ['imposter'],
     } } });
     assert.equal(denied.isError, true);
+  } finally { await client.close(); }
+});
+test('Hub MCP consumer can call the read-only CI digest against a local GitHub REST fixture', async t => {
+  const { dir } = fixture(t);
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    response.setHeader('content-type', 'application/json');
+    if (url.pathname === '/repos/owner/project/actions/runs/100') {
+      response.end(JSON.stringify({ id: 100, run_attempt: 1, status: 'completed', conclusion: 'failure',
+        head_sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', head_branch: 'topic', event: 'pull_request',
+        html_url: 'https://github.com/owner/project/actions/runs/100', created_at: '2026-11-12T12:00:00Z',
+        updated_at: '2026-11-12T12:01:00Z', pull_requests: [] }));
+    } else if (url.pathname === '/repos/owner/project/actions/runs/100/attempts/1/jobs') {
+      response.end(JSON.stringify({ total_count: 1, jobs: [{ id: 202, name: 'macos tests', status: 'completed',
+        conclusion: 'failure', completed_at: '2026-11-12T12:01:00Z', html_url: 'https://github.com/owner/project/actions/runs/100/job/202',
+        check_run_url: 'https://api.github.com/repos/owner/project/check-runs/202',
+        steps: [{ name: 'Run tests', number: 2, status: 'completed', conclusion: 'failure' }] }] }));
+    } else if (url.pathname === '/repos/owner/project/check-runs/202/annotations') {
+      response.end(JSON.stringify([{ annotation_level: 'failure', message: 'Process completed with exit code 1.',
+        path: '.github/workflows/test.yml', start_line: 12, end_line: 12 }]));
+    } else if (url.pathname === '/repos/owner/project/actions/jobs/202/logs') {
+      response.statusCode = 403;
+      response.end(JSON.stringify({ message: 'Must have admin rights to Repository.' }));
+    } else {
+      response.statusCode = 404;
+      response.end(JSON.stringify({ message: 'Not Found' }));
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const apiUrl = `http://127.0.0.1:${server.address().port}`;
+  const client = new Client({ name: 'ci-digest-consumer', version: '1' });
+  try {
+    await client.connect(new StdioClientTransport({ command: process.execPath,
+      args: [fileURLToPath(new URL('../src/mcp.js', import.meta.url))], env: {
+        ...process.env, PATH: dir + ':' + process.env.PATH, CODEX_HOME: dir,
+        TOOLRIG_AVAILABILITY_DB: join(dir, 'state.sqlite'), OPENRIG_SESSION_NAME: 'ci-consumer@toolrig',
+        TOOLRIG_DOCUMENTS_CLI: '', TOOLRIG_DOCUMENTS_ROOT: '', TOOLRIG_GITHUB_API_URL: apiUrl,
+        TOOLRIG_CI_CACHE_DIR: join(dir, 'ci-cache'), GH_TOKEN: '', GITHUB_TOKEN: '',
+      } }));
+    const result = await client.callTool({ name: 'ci_digest', arguments: { repository: 'owner/project', run_id: 100, attempt: 1 } });
+    assert.equal(result.structuredContent.status, 'failure');
+    assert.equal(result.structuredContent.jobs[0].failedSteps[0].name, 'Run tests');
+    assert.equal(result.structuredContent.jobs[0].logStatus, 'permission_denied');
+    assert.equal(result.structuredContent.jobs[0].findings[0].message, 'Process completed with exit code 1.');
   } finally { await client.close(); }
 });
 test('configured document tools route extraction over MCP and enforce root', async t => {
