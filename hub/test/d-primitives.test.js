@@ -206,3 +206,63 @@ test('SDK MCP consumer reads durable recall and checkpoints only its owned event
   assert.equal(JSON.stringify(recalled).includes(raw),false);
  } finally {await client.close();await server.close();}
 });
+
+test('tag and valid schema cannot authenticate ordinary rows or human source tasks',async()=>{
+ const f=await setup();let reads=0;f.delivery.payloadReader=async()=>{reads++;return raw;};
+ const genuine=copy(f.store.rows.get(f.id));
+ const cases=[
+  {...genuine,qitemId:'ordinary-tagged-row',sourceSession:'ordinary@fixture'},
+  {...genuine,sourceSession:'ordinary@fixture'},
+  {...genuine,body:JSON.stringify({...JSON.parse(genuine.body),sourceTask:'missing-source'})},
+ ];
+ for(const q of cases){f.store.rows.set(q.qitemId,q);assert.equal((await f.delivery.deliver(q.qitemId)).outcome,'unknown');}
+ assert.equal(reads,0);assert.equal(f.native.calls.length,0);
+ assert.equal(f.store.calls.filter(c=>['claim','handoff','note'].includes(c[0])).length,0);
+ for(const field of ['humanIntent','humanQuestions','humanAnswers','delegatedDecision']) {
+  const g=await setup();g.store.rows.get(event.sourceTask)[field]=field==='humanIntent'?'ask':{retained:'human decision'};
+  await assert.rejects(enqueueMachineEvent(g.producer,{...event,eventId:'another'}),/human/);
+  assert.equal((await g.delivery.deliver(g.id)).outcome,'unknown');assert.equal(g.native.calls.length,0);
+ }
+});
+test('native source project drift and manually forged work/return lineage cannot become machine transport',async()=>{
+ const f=await setup();f.store.rows.get(event.sourceTask).tags=['project:other'];
+ assert.equal((await f.delivery.deliver(f.id)).outcome,'unknown');assert.equal(f.native.calls.length,0);
+ const g=await setup(),work=(await g.delivery.deliver(g.id)).qitemId;
+ g.store.rows.get(work).sourceSession='ordinary@fixture';
+ await assert.rejects(consumeMachineEvent(g.worker,work,{eventId:event.eventId}),/provenance/);
+ const h=await setup(),w=(await h.delivery.deliver(h.id)).qitemId;
+ await consumeMachineEvent(h.worker,w,{eventId:event.eventId});const returned=await returnMachineEvent(h.worker,w,'exact result');
+ h.store.rows.get(returned.qitemId).handedOffFrom=h.id;
+ const native=channel({}, {seat:event.producer,nodeId:'producer-node',generation:'p',threadId:'pt'});
+ const d=new MachineDelivery({queue:h.producer,channel:native});
+ assert.equal((await d.deliver(returned.qitemId)).outcome,'unknown');assert.equal(native.calls.length,0);
+});
+
+test('CLI bounded input rejects oversized/special files before read and bounds file-growth races',async t=>{
+ const fs=await import('node:fs'),{readBoundedJson}=await import('../src/d/input.js');
+ const root=mkdtempSync(join(tmpdir(),'toolrig-d-input-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const path=join(root,'input.json');writeFileSync(path,'{}');fs.truncateSync(path,128*1024*1024);
+ let reads=0,closed=0;
+ const io={...fs,readSync(...args){reads++;return fs.readSync(...args);},closeSync(fd){closed++;return fs.closeSync(fd);}};
+ assert.throws(()=>readBoundedJson(path,io),/bounded_regular/);assert.equal(reads,0);assert.equal(closed,1);
+ assert.throws(()=>readBoundedJson(root,io),/bounded_regular/);assert.equal(reads,0);
+ // Simulate growth between fstat and read on the same real regular descriptor.
+ const growth={...io,fstatSync(){return {isFile:()=>true,size:2};}};
+ let bytes=0;growth.readSync=(...args)=>{const n=fs.readSync(...args);bytes+=n;return n;};
+ assert.throws(()=>readBoundedJson(path,growth),/byte_limit/);assert.equal(bytes,4097);
+ writeFileSync(path,' '.repeat(4094)+'{}');assert.deepEqual(readBoundedJson(path),{});
+ fs.symlinkSync(path,join(root,'link'));assert.throws(()=>readBoundedJson(join(root,'link')));
+ writeFileSync(path,Buffer.from([0xff]));assert.throws(()=>readBoundedJson(path));
+});
+
+test('CLI rejects oversized facts and outcomes before any native queue command',async t=>{
+ const {spawnSync}=await import('node:child_process'),fs=await import('node:fs');
+ const root=mkdtempSync(join(tmpdir(),'toolrig-d-cli-cap-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const file=join(root,'huge.json'),called=join(root,'called');writeFileSync(file,'{}');fs.truncateSync(file,128*1024*1024);
+ writeFileSync(join(root,'rig'),'#!/usr/bin/env node\nrequire("node:fs").writeFileSync('+JSON.stringify(called)+',"unexpected native IO");process.exit(1);',{mode:0o700});
+ for(const [command,flag] of [['consume','--facts-file'],['return','--outcome-file']]) {
+  const r=spawnSync(process.execPath,[new URL('../src/d-cli.js',import.meta.url).pathname,command,'--qitem','qitem-fixture',flag,file],
+    {encoding:'utf8',timeout:2000,env:{...process.env,PATH:root+':'+process.env.PATH}});
+  assert.equal(r.status,1);assert.equal(JSON.parse(r.stderr).outcome,'unavailable');assert.equal(existsSync(called),false);
+ }
+});

@@ -26,15 +26,50 @@ async function markers(queue, q, event) {
     try { const m=JSON.parse(row.transitionNote.slice('toolrig-d/1 '.length)); return m.eventId === event.eventId ? [m] : []; } catch { return []; }
   });
 }
+const hasHumanMetadata = q => ['humanIntent','humanDetail','humanQuestions','humanAnswers','delegatedDecision'].some(k=>q[k]!=null);
+const inProject = (q,e) => (Array.isArray(q.tags)&&q.tags.includes('project:'+e.project)) || q.targetRepo===e.project;
+const returnAction = e => ({value:'Read the original native obligation and act only within its current authority.',sourceRef:e.intentRef});
+async function sourceTask(queue,e) {
+  const parent=await queue.read(e.sourceTask);
+  if(hasHumanMetadata(parent))throw new Error('human_source_must_remain_retained');
+  if(parent.qitemId!==e.sourceTask || parent.destinationSession!==e.producer || !inProject(parent,e))throw new Error('machine_source_provenance_invalid');
+  return parent;
+}
+// Tags are selectors, never authority. Authenticate the canonical native source,
+// deterministic root and each bounded native handoff edge before payload access.
+async function authenticatedEvent(queue,q,seen=new Set()) {
+  if(seen.has(q.qitemId)||seen.size>=4)throw new Error('machine_provenance_invalid');
+  seen.add(q.qitemId);
+  const e=body(q);
+  if(hasHumanMetadata(q)||!Array.isArray(q.tags)||!q.tags.includes('machine:d-v1')||!inProject(q,e)||q.destinationSession!==e.owner)throw new Error('machine_provenance_invalid');
+  if(e.kind==='machine_delivery') {
+    if(q.qitemId!==deliveryId(e)||q.sourceSession!==e.producer||q.handedOffFrom||e.deliveryParent||e.binding||e.conclusion)throw new Error('machine_provenance_invalid');
+    await sourceTask(queue,e);return e;
+  }
+  if(!q.handedOffFrom)throw new Error('machine_provenance_invalid');
+  const parent=await queue.read(q.handedOffFrom),p=await authenticatedEvent(queue,parent,seen);
+  if(parent.qitemId!==q.handedOffFrom||parent.state!=='done'||parent.handedOffTo!==q.destinationSession||q.sourceSession!==parent.destinationSession)throw new Error('machine_provenance_invalid');
+  let expected;
+  if((e.kind==='machine_work'&&p.kind==='machine_delivery')||(e.kind==='machine_return_work'&&p.kind==='machine_return')) {
+    bindingSchema.parse(e.binding);
+    expected={...p,kind:e.kind,binding:e.binding,deliveryParent:parent.qitemId};
+  } else if(e.kind==='machine_return'&&p.kind==='machine_work') {
+    text.parse(e.conclusion);
+    expected={...p,kind:'machine_return',owner:p.producer,conclusion:e.conclusion,nextAction:returnAction(p)};
+  } else throw new Error('machine_provenance_invalid');
+  if(!same(eventSchema.parse(expected),e))throw new Error('machine_provenance_invalid');
+  return e;
+}
 export async function enqueueMachineEvent(queue, input) {
   if ((input.kind !== undefined && input.kind !== 'machine_delivery') || input.binding || input.deliveryParent || input.conclusion) throw new Error('not_machine_delivery_metadata');
   const event = eventSchema.parse({ ...input, version:1, kind:'machine_delivery' });
   const identity = await queue.identity(), parent = await queue.read(event.sourceTask);
   if (identity.sessionName !== event.producer || parent.destinationSession !== event.producer) throw new Error('producer_task_owner_mismatch');
-  if (!(parent.tags?.includes('project:'+event.project) || parent.targetRepo === event.project)) throw new Error('source_task_scope_unknown');
+  if(hasHumanMetadata(parent))throw new Error('human_source_must_remain_retained');
+  if (!inProject(parent,event)) throw new Error('source_task_scope_unknown');
   const id = deliveryId(event);
   const project = q => {
-    if(q?.qitemId!==id || q.destinationSession!==event.owner || !same(body(q),event))throw new Error('event_id_conflict_or_unknown');
+    if(q?.qitemId!==id || q.destinationSession!==event.owner || q.sourceSession!==event.producer || hasHumanMetadata(q) || !same(body(q),event))throw new Error('event_id_conflict_or_unknown');
     return {...compactReceipt(id,q),eventId:event.eventId,machineTransport:'not_confirmed; native_pending_or_compact_fallback'};
   };
   // Look up the stable native ID first. Unavailable is not permission to write.
@@ -52,7 +87,7 @@ export class MachineDelivery {
     // machine-tagged rows before interpreting any body or touching delivery.
     if (!Array.isArray(q.tags) || !q.tags.includes('machine:d-v1')) return { operationId:id, outcome:'not_applicable' };
     let e;
-    try { e=body(q); } catch { return unknown(id); }
+    try { e=await authenticatedEvent(queue,q); } catch { return unknown(id); }
     const identity = await actor(queue,q);
     if (e.owner !== q.destinationSession) throw new Error('event_owner_mismatch');
     if (!['machine_delivery','machine_return'].includes(e.kind) || q.state !== 'pending') return this.reconcile(id);
@@ -89,11 +124,11 @@ export class MachineDelivery {
   async reconcile(id) {
     // Read-only same-operation reconciliation; never start/claim/handoff again.
     try {
-      const q=await this.queue.read(id),e=body(q);await actor(this.queue,q);
+      const q=await this.queue.read(id),e=await authenticatedEvent(this.queue,q);await actor(this.queue,q);
       if (q.state==='pending') return {...compactReceipt(id,q,{outcome:'not_reserved'}),eventId:e.eventId};
       const children=await this.queue.children(id,e.owner);
       if (children.length!==1) return unknown(id);
-      const work=await this.queue.read(children[0].qitemId),w=body(work);
+      const work=await this.queue.read(children[0].qitemId),w=await authenticatedEvent(this.queue,work);
       if (w.deliveryParent!==id || w.eventId!==e.eventId) return unknown(id);
       const journal=await markers(this.queue,work,w);
       const consumed=journal.find(m=>m.phase==='consumed');
@@ -109,7 +144,7 @@ export class MachineDelivery {
   }
 }
 export async function consumeMachineEvent(queue,id,{eventId:expected,facts=[]}={}) {
-  const q=await queue.read(id),e=body(q);await actor(queue,q);
+  const q=await queue.read(id),e=await authenticatedEvent(queue,q);await actor(queue,q);
   if(e.owner!==q.destinationSession)throw new Error('event_owner_mismatch');
   if(!['machine_work','machine_return_work'].includes(e.kind) || e.eventId!==expected)throw new Error('event_obligation_mismatch');
   const previous=await markers(queue,q,e);
@@ -125,7 +160,7 @@ export async function consumeMachineEvent(queue,id,{eventId:expected,facts=[]}={
   } catch { return {...unknown(e.deliveryParent),qitemId:id}; }
 }
 export async function recallMachineEvent(queue,id) {
-  const q=await queue.read(id),e=body(q);await actor(queue,q);
+  const q=await queue.read(id),e=await authenticatedEvent(queue,q);await actor(queue,q);
   if(e.owner!==q.destinationSession)throw new Error('event_owner_mismatch');
   const journal=await markers(queue,q,e);
   return {...compactReceipt(e.deliveryParent??id,q),eventId:e.eventId,intentRef:e.intentRef,nextAction:e.nextAction,
@@ -134,7 +169,7 @@ export async function recallMachineEvent(queue,id) {
     transport:journal.some(m=>m.phase==='wake_accepted')?'toolOutput':'unconfirmed',rawPayloadRetained:false};
 }
 export async function returnMachineEvent(queue,id,conclusion) {
-  const q=await queue.read(id),e=body(q);await actor(queue,q);
+  const q=await queue.read(id),e=await authenticatedEvent(queue,q);await actor(queue,q);
   if(e.owner!==q.destinationSession)throw new Error('event_owner_mismatch');
   const summary=text.parse(conclusion);
   if(e.kind==='machine_return_work') {
@@ -153,7 +188,7 @@ export async function returnMachineEvent(queue,id,conclusion) {
     if(current.state!=='done'||current.handedOffTo!==e.producer)return unknown(e.deliveryParent);
     const candidates=await queue.children(id,e.producer);
     if(candidates.length!==1)return unknown(e.deliveryParent);
-    const child=await queue.read(candidates[0].qitemId),r=body(child);
+    const child=await queue.read(candidates[0].qitemId),r=await authenticatedEvent(queue,child);
     if(r.kind!=='machine_return'||r.eventId!==e.eventId||r.conclusion!==summary)return unknown(e.deliveryParent);
     return {...compactReceipt(e.deliveryParent,child,{outcome:'returned_native'}),eventId:e.eventId,
       nativeReturnTransport:'native_queue_wake; toolOutput_requires_runtime_receipt'};
@@ -161,7 +196,7 @@ export async function returnMachineEvent(queue,id,conclusion) {
   if(!active(q))return existing();
   if(q.state!=='in-progress'||!(await markers(queue,q,e)).some(m=>m.phase==='consumed'))throw new Error('consume_checkpoint_required');
   try {
-    const child=await queue.handoff(id,e.producer,{...e,kind:'machine_return',owner:e.producer,conclusion:summary,nextAction:{value:'Read the original native obligation and act only within its current authority.',sourceRef:e.intentRef}});
+    const child=await queue.handoff(id,e.producer,{...e,kind:'machine_return',owner:e.producer,conclusion:summary,nextAction:returnAction(e)});
     return {...compactReceipt(e.deliveryParent,child,{outcome:'returned_native'}),eventId:e.eventId,
       nativeReturnTransport:'native_queue_wake; toolOutput_requires_runtime_receipt'};
   } catch { return existing(); }

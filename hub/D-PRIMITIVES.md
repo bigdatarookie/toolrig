@@ -21,7 +21,10 @@ machine-work obligation; facts are an array of `{value,sourceRef}` from its refs
 `toolrig-d recall --qitem ID` restores event, intent, refs and sourced checkpoints.
 `toolrig-d return --qitem ID --outcome-file JSON` returns `{conclusion:"..."}` via
 native handoff; on return-work it completes that subtask only, preserving the
-original parent. No recursive machine acknowledgement is created. Exit 2 means
+original parent. No recursive machine acknowledgement is created. Input JSON must be a regular
+non-symlink file no larger than 4096 bytes: open nonblocking, check descriptor type
+and size before reading, then read at most 4097 bytes to detect growth. Invalid
+UTF8 and oversized/special inputs are rejected before any native queue operation. Exit 2 means
 unknown: reconcile the SAME native ID, never replay with a new ID.
 The MCP SDK server exposes `task_trace`, `machine_consume`, `machine_recall`,
 `machine_return` with the same actual-owner semantics. These are not actor spoofing
@@ -46,7 +49,15 @@ Native claim is the CAS; the coordinator checks pending/unblocked again before
 RPC. Runtime preserves its own live stop/busy/generation fence immediately at send.
 All event handoff children explicitly carry `project:...` and `machine:d-v1` tags.
 Untagged ordinary wakes return `outcome:not_applicable` BEFORE parsing their body;
-malformed tagged rows return `outcome:unknown` without writes or RPC.
+malformed tagged rows return `outcome:unknown` without writes or RPC. The tag is
+only a routing selector. Before any payload/channel access, delivery authenticates
+its deterministic native root ID, native sourceSession/producer, retained source
+task owner/project and every native handoff edge (maximum four protocol stages).
+A manually created row is acceptable only when its native producer and complete
+provenance are equivalent to the guarded helper; tag/body alone never confer
+permission. Human intent/detail/questions/answers/decisions on the source or event
+are rejected, not converted to transient input. Consume/recall/return validate the
+same provenance; wrong/missing/cyclic lineage fails closed.
 
 Channel is an internal owner capability, not `{verified:true}`. It implements:
 
