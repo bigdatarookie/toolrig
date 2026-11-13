@@ -4,13 +4,14 @@ import { z } from 'zod';
 import { configuredService } from './config.js';
 import { createCiDigestService } from './ci-digest.js';
 import { configuredDocumentsAdapter, registerDocumentsTools } from './documents.js';
+import { registerDTools } from './d/mcp.js';
 import { registerStateTool } from './state/mcp.js';
 import { continuation } from './store.js';
 
 let service;
 const getService = () => service ??= configuredService();
 const ciDigest = createCiDigestService({ baseUrl: process.env.TOOLRIG_GITHUB_API_URL });
-const server = new McpServer({ name: 'toolrig-hub', version: '0.1.0' });
+const server = new McpServer({ name: 'toolrig-hub', version: '0.2.0' });
 const call = fn => async args => {
   try {
     const result = await fn(args);
@@ -43,5 +44,6 @@ server.registerTool('ci_digest', {
 });
 registerDocumentsTools(server, configuredDocumentsAdapter());
 registerStateTool(server);
+registerDTools(server);
 process.once('SIGTERM', async () => { await server.close(); service?.store.close(); process.exit(0); });
 await server.connect(new StdioServerTransport());
