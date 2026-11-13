@@ -9,9 +9,11 @@ const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const MAX_LOG_BYTES = 512 * 1024;
 const MAX_FINDINGS = 8;
 const MAX_API_PAGES = 10;
+const MAX_API_CALLS = 100;
+const MAX_API_RESPONSE_BYTES = 20 * 1024 * 1024;
 const PAGE_SIZE = 100;
 const MAX_EXCERPT_CHARS = 800;
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 function repoParts(repository) {
   if (typeof repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
@@ -233,20 +235,41 @@ async function writeCache(cacheDir, value) {
 function boundedString(value, max = 300) { return redact(value).slice(0, max); }
 
 export class CiDigestService {
-  constructor({ baseUrl, token, fetchImpl, cacheDir = defaultCacheDir(), maxLogBytes = MAX_LOG_BYTES } = {}) {
+  constructor({ baseUrl, token, fetchImpl, cacheDir = defaultCacheDir(), maxLogBytes = MAX_LOG_BYTES,
+    maxApiCalls = MAX_API_CALLS, maxApiResponseBytes = MAX_API_RESPONSE_BYTES } = {}) {
     this.api = new GitHubRest({ baseUrl, token, fetchImpl });
     this.cacheDir = cacheDir;
     this.maxLogBytes = maxLogBytes;
+    this.maxApiCalls = Number.isSafeInteger(maxApiCalls) ? Math.max(1, Math.min(MAX_API_CALLS, maxApiCalls)) : MAX_API_CALLS;
+    this.maxApiResponseBytes = Number.isSafeInteger(maxApiResponseBytes)
+      ? Math.max(1, Math.min(MAX_API_RESPONSE_BYTES, maxApiResponseBytes)) : MAX_API_RESPONSE_BYTES;
   }
 
   async digest({ repository, run_id: runId, attempt: requestedAttempt, job_id: jobId, pull_request: pullRequest } = {}) {
     const started = Date.now();
     let apiCalls = 0;
     let apiResponseBytes = 0;
-    const get = async (...args) => {
+    let apiCallLimitReached = false;
+    let apiResponseLimitReached = false;
+    let diagnosticsSkippedByBudget = 0;
+    const finish = result => this.#finish(result, started, apiCalls, apiResponseBytes,
+      { apiCallLimitReached, apiResponseLimitReached });
+    const get = async (path, options = {}) => {
+      if (apiCalls >= this.maxApiCalls) {
+        apiCallLimitReached = true;
+        return { ok: false, requestSkipped: true, responseBytes: 0,
+          error: { code: 'operation_call_limit', message: `Digest stopped at its ${this.maxApiCalls}-request API budget.` } };
+      }
+      const remainingBytes = this.maxApiResponseBytes - apiResponseBytes;
+      if (remainingBytes <= 0) {
+        apiResponseLimitReached = true;
+        return { ok: false, requestSkipped: true, responseBytes: 0,
+          error: { code: 'operation_response_limit', message: `Digest stopped at its ${this.maxApiResponseBytes}-byte aggregate API response budget.` } };
+      }
       apiCalls += 1;
-      const response = await this.api.get(...args);
+      const response = await this.api.get(path, { ...options, limit: Math.min(options.limit ?? MAX_JSON_BYTES, remainingBytes) });
       apiResponseBytes += response.responseBytes ?? 0;
+      if (response.truncated && apiResponseBytes >= this.maxApiResponseBytes) apiResponseLimitReached = true;
       return response;
     };
     const getPages = async (firstPath, { arrayKey = null } = {}) => {
@@ -261,7 +284,7 @@ export class CiDigestService {
         if (visited.has(path)) { error = { code: 'pagination_cycle', message: 'GitHub repeated a pagination link.' }; break; }
         visited.add(path);
         const response = await get(path);
-        pages += 1;
+        if (!response.requestSkipped) pages += 1;
         if (!response.ok) { error = response.error; break; }
         const pageItems = Array.isArray(response.data) ? response.data : response.data?.[arrayKey];
         if (!Array.isArray(pageItems)) { error = { code: 'invalid_page_data', message: 'GitHub returned an invalid paginated response.' }; break; }
@@ -290,19 +313,19 @@ export class CiDigestService {
       if (jobId !== undefined && (!Number.isSafeInteger(Number(jobId)) || Number(jobId) < 1)) throw new Error('job_id must be a positive integer');
       if (pullRequest !== undefined && (!Number.isSafeInteger(Number(pullRequest)) || Number(pullRequest) < 1)) throw new Error('pull_request must be a positive integer');
     } catch (error) {
-      return this.#finish({ kind: 'ci_digest', status: 'invalid_input', error: { code: 'invalid_input', message: error.message }, metrics: {} }, started, apiCalls, apiResponseBytes);
+      return finish({ kind: 'ci_digest', status: 'invalid_input', error: { code: 'invalid_input', message: error.message }, metrics: {} });
     }
     const repo = `${owner}/${repoName}`;
     const escapedRepo = `${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`;
     const runResponse = await get(`/repos/${escapedRepo}/actions/runs/${encodeURIComponent(String(runId))}`);
-    if (!runResponse.ok) return this.#finish({ kind: 'ci_digest', status: 'api_error', repository: repo,
-      identity: { runId: Number(runId), attempt: Number(requestedAttempt) || null }, error: runResponse.error, metrics: {} }, started, apiCalls, apiResponseBytes);
+    if (!runResponse.ok) return finish({ kind: 'ci_digest', status: 'api_error', repository: repo,
+      identity: { runId: Number(runId), attempt: Number(requestedAttempt) || null }, error: runResponse.error, metrics: {} });
     const run = runResponse.data;
     const latestAttempt = Number(run.run_attempt) || 1;
     const attempt = Number(requestedAttempt ?? latestAttempt);
-    if (attempt > latestAttempt) return this.#finish({ kind: 'ci_digest', status: 'invalid_attempt', repository: repo,
+    if (attempt > latestAttempt) return finish({ kind: 'ci_digest', status: 'invalid_attempt', repository: repo,
       identity: { runId: run.id, attempt, latestAttempt, headSha: run.head_sha, sourceUrl: run.html_url },
-      error: { code: 'attempt_not_found', message: 'Requested attempt is newer than the current run attempt.' }, metrics: {} }, started, apiCalls, apiResponseBytes);
+      error: { code: 'attempt_not_found', message: 'Requested attempt is newer than the current run attempt.' }, metrics: {} });
 
     let pr = null;
     let staleHead = false;
@@ -326,18 +349,18 @@ export class CiDigestService {
     const jobsPath = `/repos/${escapedRepo}/actions/runs/${encodeURIComponent(String(run.id))}/attempts/${attempt}/jobs?per_page=${PAGE_SIZE}`;
     const jobsPages = await getPages(jobsPath, { arrayKey: 'jobs' });
     if (jobsPages.error) { apiErrors.push({ scope: 'jobs', ...jobsPages.error }); partial = true; }
-    if (jobsPages.items.length === 0 && jobsPages.error) return this.#finish({ kind: 'ci_digest', status: 'partial', repository: repo,
+    if (jobsPages.items.length === 0 && jobsPages.error) return finish({ kind: 'ci_digest', status: 'partial', repository: repo,
       identity: { runId: run.id, attempt, latestAttempt, staleAttempt: attempt < latestAttempt, headSha: run.head_sha,
         pullRequest: pr, sourceUrl: run.html_url }, runStatus: statusKind(run.status, run.conclusion),
       apiErrors, jobs: [], partial: true, coverage: { runMetadata: true, attemptJobs: false, attemptJobsFetched: 0,
         attemptJobsReported: jobsPages.reportedCount, attemptJobsPages: jobsPages.pages,
-        attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} }, started, apiCalls, apiResponseBytes);
+        attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} });
 
     let jobs = jobsPages.items;
     partial ||= !jobsPages.complete;
     if (jobId !== undefined) jobs = jobs.filter(job => Number(job.id) === Number(jobId));
     if (jobId !== undefined && jobs.length === 0) {
-      return this.#finish({ kind: 'ci_digest', status: 'partial', repository: repo,
+      return finish({ kind: 'ci_digest', status: 'partial', repository: repo,
         identity: { runId: run.id, attempt, latestAttempt, staleAttempt: attempt < latestAttempt, headSha: run.head_sha,
           pullRequest: pr, sourceUrl: run.html_url }, runStatus: statusKind(run.status, run.conclusion),
         apiErrors: [...apiErrors, { scope: 'job_selection',
@@ -345,7 +368,7 @@ export class CiDigestService {
           message: jobsPages.complete ? 'Selected job does not belong to this run attempt.' : 'Selected job was not found before attempt pagination was complete.' }],
         jobs: [], partial: true, coverage: { runMetadata: true, attemptJobs: jobsPages.complete,
           attemptJobsFetched: jobsPages.items.length, attemptJobsReported: jobsPages.reportedCount,
-          attemptJobsPages: jobsPages.pages, attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} }, started, apiCalls, apiResponseBytes);
+          attemptJobsPages: jobsPages.pages, attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} });
     }
 
     const outputJobs = [];
@@ -372,6 +395,20 @@ export class CiDigestService {
           outputJobs.push(summaryJob);
           continue;
         }
+      }
+
+      if (apiCalls >= this.maxApiCalls) apiCallLimitReached = true;
+      if (apiCallLimitReached || apiResponseLimitReached) {
+        diagnosticsSkippedByBudget += 1;
+        partial = true;
+        summaryJob.findings = [makeFinding(`Job ${job.name} failed; detailed diagnostics were skipped at the operation API budget.`,
+          { url: summaryJob.url }, 'job_status')];
+        summaryJob.logStatus = 'skipped_operation_budget';
+        summaryJob.annotationStatus = 'skipped_operation_budget';
+        summaryJob.findingsPartial = true;
+        summaryJob.cache = 'miss';
+        outputJobs.push(summaryJob);
+        continue;
       }
 
       const annotationsUrl = typeof job.check_run_url === 'string' ? job.check_run_url : null;
@@ -442,16 +479,21 @@ export class CiDigestService {
         structuredAnnotations: outputJobs.some(job => job.annotationStatus === 'available'),
         structuredAnnotationsComplete: jobsPages.complete
           && outputJobs.filter(job => job.kind === 'failure').every(job => job.annotationStatus === 'available'),
-        failedJobLogs: outputJobs.some(job => ['available', 'available_no_excerpt', 'truncated'].includes(job.logStatus)) },
+        failedJobLogs: outputJobs.some(job => ['available', 'available_no_excerpt', 'truncated'].includes(job.logStatus)),
+        apiCallLimitReached, apiResponseLimitReached, diagnosticsSkippedByBudget },
       metrics: {},
     };
-    return this.#finish(result, started, apiCalls, apiResponseBytes);
+    return finish(result);
   }
 
-  #finish(result, started, apiCalls, apiResponseBytes) {
+  #finish(result, started, apiCalls, apiResponseBytes, { apiCallLimitReached = false, apiResponseLimitReached = false } = {}) {
     result.metrics ??= {};
     result.metrics.apiCalls = apiCalls;
     result.metrics.apiResponseBytes = apiResponseBytes;
+    result.metrics.apiCallBudget = this.maxApiCalls;
+    result.metrics.apiResponseByteBudget = this.maxApiResponseBytes;
+    result.metrics.apiCallLimitReached = apiCallLimitReached;
+    result.metrics.apiResponseLimitReached = apiResponseLimitReached;
     result.metrics.cacheHits = result.jobs?.filter(job => job.cache === 'hit').length ?? 0;
     result.metrics.elapsedMs = Date.now() - started;
     let guess = 0;

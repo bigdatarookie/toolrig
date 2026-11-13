@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CiDigestService } from '../src/ci-digest.js';
@@ -281,5 +282,63 @@ test('pagination links outside the configured API origin are not followed', asyn
   assert.deepEqual(hosts, ['api.github.com', 'api.github.com']);
   assert.equal(result.coverage.attemptJobs, false);
   assert.equal(result.apiErrors[0].code, 'invalid_pagination_link');
+  assert.equal(result.partial, true);
+});
+
+test('pre-pagination version-1 cache is invalidated before later annotation pages are checked', async t => {
+  const cacheDir = await tempCache(t);
+  const job = failedJob();
+  const key = createHash('sha256').update([repository, runId, 1, headSha, job.id, job.check_run_url, job.completed_at].join('\n')).digest('hex');
+  await mkdir(cacheDir, { recursive: true });
+  await writeFile(join(cacheDir, `${key}.json`), JSON.stringify({ version: 1, key,
+    findings: [{ errorType: 'UNKNOWN', message: 'stale first-page cache', occurrenceCount: 1, sourceRefs: [], sourceKind: 'check_annotation' }],
+    logStatus: 'available', annotationStatus: 'available' }));
+  const calls = [];
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    calls.push(`${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) return json({ total_count: 1, jobs: [job] });
+    if (parsed.pathname.endsWith('/check-runs/202/annotations')) {
+      if (parsed.searchParams.get('page') === '2') return json([{ annotation_level: 'failure', message: 'TypeError: current second-page diagnostic', path: 'src/test.js', start_line: 91 }]);
+      return json(Array.from({ length: 100 }, () => ({ annotation_level: 'notice', message: 'First page notice' })), 200,
+        { link: '<https://api.github.com/repos/owner/project/check-runs/202/annotations?per_page=100&page=2>; rel="next"' });
+    }
+    return json({ message: 'unexpected fixture request' }, 500);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir }).digest({ repository, run_id: runId });
+  assert.equal(result.jobs[0].cache, 'miss');
+  assert.equal(result.jobs[0].findings[0].message, 'TypeError: current second-page diagnostic');
+  assert.equal(result.jobs[0].annotationStatus, 'available');
+  assert.equal(result.coverage.structuredAnnotationsComplete, true);
+  assert.equal(result.partial, false);
+  assert.equal(calls.filter(path => path.includes('/annotations')).length, 2);
+  assert.equal(calls.some(path => path.endsWith('/logs')), false);
+});
+
+test('one digest operation enforces its API-call budget across failed jobs', async t => {
+  const jobs = [failedJob(), failedJob({ id: 303, name: 'second failed job',
+    check_run_url: 'https://api.github.com/repos/owner/project/check-runs/303' })];
+  const { fetchImpl, calls } = fixtureFetch({ jobs, annotations: genericAnnotation(), log: '' });
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t), maxApiCalls: 4 })
+    .digest({ repository, run_id: runId });
+  assert.equal(result.metrics.apiCalls, 4);
+  assert.equal(result.metrics.apiCallBudget, 4);
+  assert.equal(result.metrics.apiCallLimitReached, true);
+  assert.equal(result.coverage.diagnosticsSkippedByBudget, 1);
+  assert.equal(result.jobs[0].logStatus, 'available_no_excerpt');
+  assert.equal(result.jobs[1].logStatus, 'skipped_operation_budget');
+  assert.equal(result.partial, true);
+  assert.equal(calls.length, 4);
+});
+
+test('one digest operation never reads beyond its aggregate API response-byte budget', async t => {
+  const { fetchImpl } = fixtureFetch({ jobs: [failedJob()], annotations: genericAnnotation(), log: 'AssertionError: ' + 'x'.repeat(1000) });
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t), maxApiResponseBytes: 900 })
+    .digest({ repository, run_id: runId });
+  assert.ok(result.metrics.apiResponseBytes <= 900);
+  assert.equal(result.metrics.apiResponseByteBudget, 900);
+  assert.equal(result.metrics.apiResponseLimitReached, true);
   assert.equal(result.partial, true);
 });

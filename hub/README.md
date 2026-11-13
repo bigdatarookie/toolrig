@@ -111,6 +111,13 @@ reported job count exceeds the returned pages, `partial` is true and the
 coverage fields report that the attempt or annotations are incomplete. The
 service never silently treats the first page as the whole run.
 
+One digest call also caps all REST requests at 100 and all response bodies
+(including logs) at 20 MiB total. When either budget is exhausted, further
+failed-job diagnostics are marked `skipped_operation_budget`, coverage is
+partial, and the result reports the consumed budget. These limits bound work
+across the whole run, not just each endpoint or log individually. Cache format
+version 2 invalidates findings written before annotation pagination was added.
+
 Metrics report API call count, fetched response bytes, digest JSON bytes,
 elapsed time, cache hits, and a rough output-token estimate (UTF-8 bytes ÷ 4,
 not provider billing). This describes the digest result, not whole-rig model
@@ -124,7 +131,7 @@ The digest returned failure, kept the successful Ubuntu and failed macOS jobs,
 identified failed step `Run npm test` and its structured annotation, and marked
 job logs `permission_denied`; it did not invent a test cause. Without changing
 credentials, a same-run raw REST baseline fetched four endpoint bodies totaling
-18,322 bytes, while the updated JSON digest is 2,158 bytes (88.22% fewer consumer-facing
+18,322 bytes, while the current JSON digest is 2,362 bytes (87.11% fewer consumer-facing
 bytes than those raw bodies); both paths made four calls. This is a payload
 comparison, not a network-call or full-log token-savings claim. The inaccessible
 raw log means the actual failing test detail and any comparison against full-log
