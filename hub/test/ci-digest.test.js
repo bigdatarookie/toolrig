@@ -172,3 +172,114 @@ test('API rate-limit and permission errors are typed instead of empty-success', 
   assert.equal(result.error.code, 'rate_limited');
   assert.equal(result.jobs, undefined);
 });
+
+test('jobs pagination finds a later failed job and reports complete attempt coverage', async t => {
+  const calls = [];
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    calls.push(`${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) {
+      if (parsed.searchParams.get('page') === '2') return json({ total_count: 101, jobs: [failedJob({ id: 999,
+        check_run_url: 'https://api.github.com/repos/owner/project/check-runs/999' })] });
+      const jobs = Array.from({ length: 100 }, (_, index) => failedJob({ id: 300 + index, name: `passing ${index}`,
+        conclusion: 'success', check_run_url: null, steps: [] }));
+      return json({ total_count: 101, jobs }, 200, { link: '<https://api.github.com/repos/owner/project/actions/runs/100/attempts/1/jobs?per_page=100&page=2>; rel="next"' });
+    }
+    if (parsed.pathname.endsWith('/check-runs/999/annotations')) return json(genericAnnotation().map(item => ({ ...item, message: 'TypeError: failed assertion' })));
+    return json({ message: 'unexpected fixture request' }, 500);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) }).digest({ repository, run_id: runId });
+  assert.equal(result.jobs.length, 101);
+  assert.equal(result.jobs.at(-1).id, 999);
+  assert.equal(result.jobs.at(-1).findings[0].errorType, 'TYPE_ERROR');
+  assert.equal(result.coverage.attemptJobs, true);
+  assert.equal(result.coverage.attemptJobsReported, 101);
+  assert.equal(result.partial, false);
+  assert.equal(calls.filter(path => path.includes('/attempts/1/jobs')).length, 2);
+});
+
+test('annotations pagination follows next page and does not hide a later structured failure', async t => {
+  const calls = [];
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    calls.push(`${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) return json({ total_count: 1, jobs: [failedJob()] });
+    if (parsed.pathname.endsWith('/check-runs/202/annotations')) {
+      if (parsed.searchParams.get('page') === '2') return json([{ annotation_level: 'failure', message: 'TypeError: later annotation', path: 'src/test.js', start_line: 73 }]);
+      return json(Array.from({ length: 100 }, () => ({ annotation_level: 'notice', message: 'Earlier informational annotation' })), 200,
+        { link: '<https://api.github.com/repos/owner/project/check-runs/202/annotations?per_page=100&page=2>; rel="next"' });
+    }
+    return json({ message: 'unexpected fixture request' }, 500);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) }).digest({ repository, run_id: runId });
+  assert.equal(result.jobs[0].annotationStatus, 'available');
+  assert.equal(result.jobs[0].findings[0].errorType, 'TYPE_ERROR');
+  assert.equal(result.jobs[0].findings[0].message, 'TypeError: later annotation');
+  assert.equal(result.coverage.structuredAnnotations, true);
+  assert.equal(result.partial, false);
+  assert.equal(calls.filter(path => path.includes('/annotations')).length, 2);
+  assert.equal(calls.some(path => path.endsWith('/logs')), false);
+});
+
+test('reported results without a next link make attempt coverage explicitly partial', async t => {
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) return json({ total_count: 101,
+      jobs: Array.from({ length: 100 }, (_, index) => failedJob({ id: 400 + index, conclusion: 'success', steps: [], check_run_url: null })) });
+    return json({ message: 'unexpected fixture request' }, 500);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) }).digest({ repository, run_id: runId });
+  assert.equal(result.coverage.attemptJobs, false);
+  assert.equal(result.coverage.attemptJobsReported, 101);
+  assert.equal(result.partial, true);
+  assert.equal(result.jobs.length, 100);
+});
+
+test('pagination page cap stops bounded work and reports the omitted tail', async t => {
+  const paths = [];
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    paths.push(`${parsed.pathname}${parsed.search}`);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    if (!parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) return json({ message: 'unexpected fixture request' }, 500);
+    const page = Number(parsed.searchParams.get('page') ?? 1);
+    const jobs = Array.from({ length: 100 }, (_, index) => failedJob({ id: page * 1000 + index,
+      name: `passing ${page}/${index}`, conclusion: 'success', steps: [], check_run_url: null }));
+    const headers = page < 11 ? { link: `<https://api.github.com/repos/owner/project/actions/runs/100/attempts/1/jobs?per_page=100&page=${page + 1}>; rel="next"` } : {};
+    return json({ total_count: 1100, jobs }, 200, headers);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) }).digest({ repository, run_id: runId });
+  assert.equal(result.coverage.attemptJobs, false);
+  assert.equal(result.coverage.attemptJobsLimitReached, true);
+  assert.equal(result.coverage.attemptJobsFetched, 1000);
+  assert.equal(result.coverage.attemptJobsReported, 1100);
+  assert.equal(result.apiErrors[0].code, 'pagination_page_limit');
+  assert.equal(result.partial, true);
+  assert.equal(result.jobs.length, 1000);
+  assert.equal(paths.filter(path => path.includes('/attempts/1/jobs')).length, 10);
+});
+
+test('pagination links outside the configured API origin are not followed', async t => {
+  const hosts = [];
+  const fetchImpl = async (url, options) => {
+    const parsed = new URL(url);
+    hosts.push(parsed.host);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha, html_url: 'https://github.com/owner/project/actions/runs/100' });
+    return json({ total_count: 101, jobs: Array.from({ length: 100 }, (_, index) => failedJob({ id: 500 + index,
+      conclusion: 'success', steps: [], check_run_url: null })) }, 200,
+    { link: '<https://attacker.invalid/collect?token=leak>; rel="next"' });
+  };
+  const result = await new CiDigestService({ fetchImpl, token: 'test-token', cacheDir: await tempCache(t) }).digest({ repository, run_id: runId });
+  assert.deepEqual(hosts, ['api.github.com', 'api.github.com']);
+  assert.equal(result.coverage.attemptJobs, false);
+  assert.equal(result.apiErrors[0].code, 'invalid_pagination_link');
+  assert.equal(result.partial, true);
+});

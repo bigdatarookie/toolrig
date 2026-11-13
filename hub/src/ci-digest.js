@@ -8,6 +8,8 @@ const API_VERSION = '2022-11-28';
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const MAX_LOG_BYTES = 512 * 1024;
 const MAX_FINDINGS = 8;
+const MAX_API_PAGES = 10;
+const PAGE_SIZE = 100;
 const MAX_EXCERPT_CHARS = 800;
 const CACHE_VERSION = 1;
 
@@ -50,6 +52,15 @@ function classifyApiError(status, message, headers = {}) {
   if (status === 404) return { code: 'not_found', status };
   if (status === 429) return { code: 'rate_limited', status };
   return { code: 'github_api_error', status };
+}
+
+function nextLink(header) {
+  for (const entry of String(header ?? '').split(/,(?=\s*<)/)) {
+    const target = entry.match(/^\s*<([^>]+)>/);
+    const relation = entry.match(/;\s*rel\s*=\s*(?:"([^"]+)"|([^;\s]+))/i);
+    if (target && (relation?.[1] ?? relation?.[2] ?? '').split(/\s+/).includes('next')) return target[1];
+  }
+  return null;
 }
 
 async function readBounded(response, limit) {
@@ -127,10 +138,22 @@ class GitHubRest {
               ? 'The requested GitHub resource was not found or is not visible.' : 'GitHub request failed.' } };
     }
     if (truncated) return { ok: false, responseBytes: bytes.byteLength, error: { code: 'response_too_large', status: response.status, message: 'GitHub JSON exceeded the configured response limit.' } };
+    const nextPageUrl = nextLink(response.headers.get('link'));
     if (textResponse) return { ok: true, data: bytes.toString('utf8'), bytes: bytes.byteLength,
-      responseBytes: bytes.byteLength, contentLength: Number(response.headers.get('content-length')) || null, truncated };
-    try { return { ok: true, data: JSON.parse(bytes.toString('utf8')), bytes: bytes.byteLength, responseBytes: bytes.byteLength }; }
+      responseBytes: bytes.byteLength, contentLength: Number(response.headers.get('content-length')) || null, truncated, nextPageUrl };
+    try { return { ok: true, data: JSON.parse(bytes.toString('utf8')), bytes: bytes.byteLength, responseBytes: bytes.byteLength, nextPageUrl }; }
     catch { return { ok: false, responseBytes: bytes.byteLength, error: { code: 'invalid_github_json', status: response.status, message: 'GitHub returned invalid JSON.' } }; }
+  }
+
+  nextPagePath(value) {
+    const base = new URL(this.baseUrl);
+    const target = new URL(value, this.baseUrl);
+    const basePath = base.pathname.replace(/\/+$/, '');
+    if (target.origin !== base.origin || target.username || target.password || target.hash
+      || (basePath && target.pathname !== basePath && !target.pathname.startsWith(`${basePath}/`))) {
+      throw new Error('pagination_link_outside_api');
+    }
+    return `${target.pathname.slice(basePath.length)}${target.search}`;
   }
 }
 
@@ -226,6 +249,39 @@ export class CiDigestService {
       apiResponseBytes += response.responseBytes ?? 0;
       return response;
     };
+    const getPages = async (firstPath, { arrayKey = null } = {}) => {
+      const items = [];
+      const visited = new Set();
+      let path = firstPath;
+      let pages = 0;
+      let reportedCount = null;
+      let error = null;
+      let limitReached = false;
+      while (path && pages < MAX_API_PAGES) {
+        if (visited.has(path)) { error = { code: 'pagination_cycle', message: 'GitHub repeated a pagination link.' }; break; }
+        visited.add(path);
+        const response = await get(path);
+        pages += 1;
+        if (!response.ok) { error = response.error; break; }
+        const pageItems = Array.isArray(response.data) ? response.data : response.data?.[arrayKey];
+        if (!Array.isArray(pageItems)) { error = { code: 'invalid_page_data', message: 'GitHub returned an invalid paginated response.' }; break; }
+        items.push(...pageItems);
+        if (Number.isSafeInteger(response.data?.total_count) && response.data.total_count >= 0) reportedCount = response.data.total_count;
+        if (response.nextPageUrl) {
+          try { path = this.api.nextPagePath(response.nextPageUrl); }
+          catch { error = { code: 'invalid_pagination_link', message: 'GitHub returned a pagination link outside its configured API origin.' }; path = null; break; }
+        } else path = null;
+      }
+      if (path && pages >= MAX_API_PAGES) {
+        limitReached = true;
+        error = { code: 'pagination_page_limit', message: `GitHub pagination exceeded the ${MAX_API_PAGES}-page safety limit.` };
+      }
+      const complete = !path && !error && (reportedCount === null || items.length >= reportedCount);
+      if (!complete && !error && reportedCount !== null && items.length < reportedCount) {
+        error = { code: 'incomplete_pagination', message: 'GitHub reported more results than the returned pages contained.' };
+      }
+      return { items, pages, reportedCount, complete, limitReached, ...(error ? { error } : {}) };
+    };
     let owner; let repoName;
     try {
       [owner, repoName] = repoParts(repository);
@@ -267,22 +323,29 @@ export class CiDigestService {
       pr = run.pull_requests.slice(0, 10).map(item => ({ number: item.number, url: item.url }));
     }
 
-    const jobsPath = `/repos/${escapedRepo}/actions/runs/${encodeURIComponent(String(run.id))}/attempts/${attempt}/jobs?per_page=100`;
-    const jobsResponse = await get(jobsPath);
-    if (!jobsResponse.ok) return this.#finish({ kind: 'ci_digest', status: 'partial', repository: repo,
+    const jobsPath = `/repos/${escapedRepo}/actions/runs/${encodeURIComponent(String(run.id))}/attempts/${attempt}/jobs?per_page=${PAGE_SIZE}`;
+    const jobsPages = await getPages(jobsPath, { arrayKey: 'jobs' });
+    if (jobsPages.error) { apiErrors.push({ scope: 'jobs', ...jobsPages.error }); partial = true; }
+    if (jobsPages.items.length === 0 && jobsPages.error) return this.#finish({ kind: 'ci_digest', status: 'partial', repository: repo,
       identity: { runId: run.id, attempt, latestAttempt, staleAttempt: attempt < latestAttempt, headSha: run.head_sha,
         pullRequest: pr, sourceUrl: run.html_url }, runStatus: statusKind(run.status, run.conclusion),
-      apiErrors: [...apiErrors, { scope: 'jobs', ...jobsResponse.error }], jobs: [], partial: true, metrics: {} }, started, apiCalls, apiResponseBytes);
+      apiErrors, jobs: [], partial: true, coverage: { runMetadata: true, attemptJobs: false, attemptJobsFetched: 0,
+        attemptJobsReported: jobsPages.reportedCount, attemptJobsPages: jobsPages.pages,
+        attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} }, started, apiCalls, apiResponseBytes);
 
-    let jobs = Array.isArray(jobsResponse.data?.jobs) ? jobsResponse.data.jobs : [];
-    if (!Array.isArray(jobsResponse.data?.jobs)) partial = true;
+    let jobs = jobsPages.items;
+    partial ||= !jobsPages.complete;
     if (jobId !== undefined) jobs = jobs.filter(job => Number(job.id) === Number(jobId));
     if (jobId !== undefined && jobs.length === 0) {
       return this.#finish({ kind: 'ci_digest', status: 'partial', repository: repo,
         identity: { runId: run.id, attempt, latestAttempt, staleAttempt: attempt < latestAttempt, headSha: run.head_sha,
           pullRequest: pr, sourceUrl: run.html_url }, runStatus: statusKind(run.status, run.conclusion),
-        apiErrors: [...apiErrors, { scope: 'job_selection', code: 'job_not_in_attempt', message: 'Selected job does not belong to this run attempt.' }],
-        jobs: [], partial: true, metrics: {} }, started, apiCalls, apiResponseBytes);
+        apiErrors: [...apiErrors, { scope: 'job_selection',
+          code: jobsPages.complete ? 'job_not_in_attempt' : 'job_not_found_before_coverage_complete',
+          message: jobsPages.complete ? 'Selected job does not belong to this run attempt.' : 'Selected job was not found before attempt pagination was complete.' }],
+        jobs: [], partial: true, coverage: { runMetadata: true, attemptJobs: jobsPages.complete,
+          attemptJobsFetched: jobsPages.items.length, attemptJobsReported: jobsPages.reportedCount,
+          attemptJobsPages: jobsPages.pages, attemptJobsLimitReached: jobsPages.limitReached }, metrics: {} }, started, apiCalls, apiResponseBytes);
     }
 
     const outputJobs = [];
@@ -315,14 +378,18 @@ export class CiDigestService {
       const match = annotationsUrl?.match(/\/check-runs\/(\d+)$/);
       let annotations = [];
       let annotationStatus = 'unavailable';
+      let annotationTruncated = false;
       if (match) {
-        const annotationsResponse = await get(`/repos/${escapedRepo}/check-runs/${match[1]}/annotations?per_page=100`);
-        if (annotationsResponse.ok && Array.isArray(annotationsResponse.data)) {
-          annotations = annotationsResponse.data.filter(item => item.annotation_level === 'failure').slice(0, 20);
-          annotationStatus = 'available';
+        const annotationPages = await getPages(`/repos/${escapedRepo}/check-runs/${match[1]}/annotations?per_page=${PAGE_SIZE}`);
+        const failureAnnotations = annotationPages.items.filter(item => item.annotation_level === 'failure');
+        annotationTruncated = failureAnnotations.length > 20;
+        annotations = failureAnnotations.slice(0, 20);
+        if (annotationPages.complete) {
+          annotationStatus = annotationTruncated ? 'truncated' : 'available';
+          if (annotationTruncated) partial = true;
         } else {
-          const error = annotationsResponse.error ?? { code: 'invalid_annotations', message: 'Check annotations were unavailable.' };
-          annotationStatus = error.code;
+          const error = annotationPages.error ?? { code: 'incomplete_pagination', message: 'GitHub annotation pages were incomplete.' };
+          annotationStatus = 'partial';
           apiErrors.push({ scope: 'annotations', jobId: job.id, ...error });
           partial = true;
         }
@@ -348,8 +415,10 @@ export class CiDigestService {
       summaryJob.findings = groupFindings(findings);
       summaryJob.logStatus = logStatus;
       summaryJob.annotationStatus = annotationStatus;
+      if (annotationTruncated) summaryJob.annotationsTruncated = true;
+      if (!annotationStatus || annotationStatus === 'partial' || annotationStatus === 'truncated') summaryJob.findingsPartial = true;
       summaryJob.cache = 'miss';
-      if (isFinal && logStatus === 'available' && logStatus !== 'permission_denied') {
+      if (isFinal && logStatus === 'available' && !summaryJob.findingsPartial) {
         await writeCache(this.cacheDir, { version: CACHE_VERSION, key, findings: summaryJob.findings, logStatus, annotationStatus });
       }
       outputJobs.push(summaryJob);
@@ -366,8 +435,13 @@ export class CiDigestService {
       jobs: outputJobs,
       partial: partial || staleHead || pullRequestMatch === false,
       ...(apiErrors.length ? { apiErrors } : {}),
-      coverage: { runMetadata: true, attemptJobs: true, failedStepNames: true,
+      coverage: { runMetadata: true, attemptJobs: jobsPages.complete,
+        attemptJobsFetched: jobsPages.items.length, attemptJobsReported: jobsPages.reportedCount,
+        attemptJobsPages: jobsPages.pages, attemptJobsLimitReached: jobsPages.limitReached,
+        failedStepNames: jobsPages.complete,
         structuredAnnotations: outputJobs.some(job => job.annotationStatus === 'available'),
+        structuredAnnotationsComplete: jobsPages.complete
+          && outputJobs.filter(job => job.kind === 'failure').every(job => job.annotationStatus === 'available'),
         failedJobLogs: outputJobs.some(job => ['available', 'available_no_excerpt', 'truncated'].includes(job.logStatus)) },
       metrics: {},
     };

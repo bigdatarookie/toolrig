@@ -104,6 +104,13 @@ cached under `TOOLRIG_CI_CACHE_DIR` (defaults to `~/.cache/toolrig/ci-digest`)
 with owner-only directory/file permissions. Cache identity includes repository,
 run, attempt, head SHA, job, check run, and completion time.
 
+Jobs and check annotations follow GitHub's `Link` pagination, with a maximum of
+10 pages × 100 entries per endpoint. Pagination links must stay on the
+configured API origin. If a page is omitted, malformed, repeats, or the API's
+reported job count exceeds the returned pages, `partial` is true and the
+coverage fields report that the attempt or annotations are incomplete. The
+service never silently treats the first page as the whole run.
+
 Metrics report API call count, fetched response bytes, digest JSON bytes,
 elapsed time, cache hits, and a rough output-token estimate (UTF-8 bytes ÷ 4,
 not provider billing). This describes the digest result, not whole-rig model
@@ -117,7 +124,7 @@ The digest returned failure, kept the successful Ubuntu and failed macOS jobs,
 identified failed step `Run npm test` and its structured annotation, and marked
 job logs `permission_denied`; it did not invent a test cause. Without changing
 credentials, a same-run raw REST baseline fetched four endpoint bodies totaling
-18,322 bytes, while the JSON digest was 2,021 bytes (88.98% fewer consumer-facing
+18,322 bytes, while the updated JSON digest is 2,158 bytes (88.22% fewer consumer-facing
 bytes than those raw bodies); both paths made four calls. This is a payload
 comparison, not a network-call or full-log token-savings claim. The inaccessible
 raw log means the actual failing test detail and any comparison against full-log
