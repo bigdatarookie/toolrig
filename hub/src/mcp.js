@@ -2,9 +2,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { configuredService } from './config.js';
 import { configuredDocumentsAdapter, registerDocumentsTools } from './documents.js';
+import { registerStateTool } from './state/mcp.js';
 import { continuation } from './store.js';
 
-const service = configuredService();
+let service;
+const getService = () => service ??= configuredService();
 const server = new McpServer({ name: 'toolrig-hub', version: '0.1.0' });
 const call = fn => async args => {
   try {
@@ -17,11 +19,12 @@ const call = fn => async args => {
 server.registerTool('availability_status', {
   description: 'Read current configured Codex home account and quota with source/time. No login or inference. Does not attest an already-running seat account.',
   inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false },
-}, call(() => service.status()));
+}, call(() => getService().status()));
 server.registerTool('availability_request', {
   description: 'Evaluate permitted account policy and persist one shared-home pending continuation. Does not execute auth changes or restart seats.',
   inputSchema: { continuation },
-}, call(args => service.request(args.continuation)));
+}, call(args => getService().request(args.continuation)));
 registerDocumentsTools(server, configuredDocumentsAdapter());
-process.once('SIGTERM', async () => { await server.close(); service.store.close(); process.exit(0); });
+registerStateTool(server);
+process.once('SIGTERM', async () => { await server.close(); service?.store.close(); process.exit(0); });
 await server.connect(new StdioServerTransport());
