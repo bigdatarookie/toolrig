@@ -1,10 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
 import { configuredService } from './config.js';
+import { createCiDigestService } from './ci-digest.js';
 import { configuredDocumentsAdapter, registerDocumentsTools } from './documents.js';
 import { continuation } from './store.js';
 
 const service = configuredService();
+const ciDigest = createCiDigestService({ baseUrl: process.env.TOOLRIG_GITHUB_API_URL });
 const server = new McpServer({ name: 'toolrig-hub', version: '0.1.0' });
 const call = fn => async args => {
   try {
@@ -22,6 +25,20 @@ server.registerTool('availability_request', {
   description: 'Evaluate permitted account policy and persist one shared-home pending continuation. Does not execute auth changes or restart seats.',
   inputSchema: { continuation },
 }, call(args => service.request(args.continuation)));
+server.registerTool('ci_digest', {
+  description: 'Read a GitHub Actions run/attempt and summarize statuses, failed steps, structured check annotations, and bounded relevant error excerpts. Never reruns, cancels, merges, or changes CI.',
+  inputSchema: {
+    repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+    run_id: z.number().int().positive(),
+    attempt: z.number().int().positive().optional(),
+    job_id: z.number().int().positive().optional(),
+    pull_request: z.number().int().positive().optional(),
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, async args => {
+  const result = await ciDigest.digest(args);
+  return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+});
 registerDocumentsTools(server, configuredDocumentsAdapter());
 process.once('SIGTERM', async () => { await server.close(); service.store.close(); process.exit(0); });
 await server.connect(new StdioServerTransport());
