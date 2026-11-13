@@ -46,9 +46,10 @@ windows, not context-window or cumulative token usage.
 
 ## Documents MCP adapter
 
-The same stdio Hub can optionally expose the existing Toolrig Documents CLI.
-Set both variables in the Hub launch environment to register the four
-read-only tools `documents_inspect`, `documents_read`, `documents_render`, and
+The same stdio Hub can optionally expose the existing Toolrig Documents CLI
+and deterministic CSV reader. Set `TOOLRIG_DOCUMENTS_ROOT` to enable
+`documents_extract_csv`; also set `TOOLRIG_DOCUMENTS_CLI` to register
+`documents_inspect`, `documents_read`, `documents_render`, and
 `documents_extract_tables`:
 
 | Variable | Meaning |
@@ -65,9 +66,25 @@ oversized results, but do not mutate source documents. Artifacts stay outside
 the configured document root by default and use the configured output directory
 when supplied.
 
-Without both variables the Hub does not advertise document tools. Stdio still
+Without a configured root the Hub does not advertise document tools. Stdio still
 runs with the launching OS user's authority; a configured root is an adapter
 boundary, not an OS sandbox against other processes running as that user.
+
+`documents_extract_csv` returns exact string cell values and CSV record
+locators. It never casts identifiers, dates, units, or numbers. A caller may
+name one ticker column to receive a separate value with surrounding whitespace
+trimmed; the original cell remains in `values` unchanged.
+
+For optional local Qwen compaction on `documents_read`, configure
+`TOOLRIG_QWEN_API_KEY` and `TOOLRIG_QWEN_MODEL` in the trusted Hub environment.
+Optional endpoint overrides are `TOOLRIG_QWEN_API_URL` and
+`TOOLRIG_QWEN_HEALTH_URL`; both must remain HTTP loopback URLs. Compaction is
+opt-in per call and requires an explicit source eligibility attestation, a
+question, locators, at least 8000 extracted `o200k_base` tokens, and a known
+consumer window budget. Busy gateways, errors, invalid output, or an unknown
+budget leave the extracted source untouched and report a direct-source reason.
+The Qwen credential is sent only to the configured loopback endpoint and is
+removed from the document CLI child environment.
 
 ## CI error digest
 

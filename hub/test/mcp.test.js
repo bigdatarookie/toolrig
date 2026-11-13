@@ -105,6 +105,8 @@ test('configured document tools route extraction over MCP and enforce root', asy
   mkdirSync(documentsRoot);
   const document = join(documentsRoot, 'table.pdf');
   writeFileSync(document, 'fixture');
+  const csv = join(documentsRoot, 'prices.csv');
+  writeFileSync(csv, 'Ticker,NAME,ID,Date,Price,Units,PIT\n  ABC ,Company,0007,2026-11-14,1.20,USD,2026-11-14T09:30:00Z\n');
   const outside = join(dir, 'outside.pdf');
   writeFileSync(outside, 'outside');
   const documentsCli = join(dir, 'toolrig-documents');
@@ -124,7 +126,7 @@ process.stdout.write(JSON.stringify({ok:true,status:'ok',operation,source:{name:
         TOOLRIG_DOCUMENT_ARTIFACT_DIR: join(dir, 'artifacts'),
       } }));
     const tools = await client.listTools();
-    for (const name of ['documents_inspect', 'documents_read', 'documents_render', 'documents_extract_tables']) {
+    for (const name of ['documents_inspect', 'documents_read', 'documents_render', 'documents_extract_tables', 'documents_extract_csv']) {
       assert.ok(tools.tools.some(tool => tool.name === name), `missing ${name}`);
     }
     const extracted = await client.callTool({ name: 'documents_extract_tables', arguments: { path: document, pages: '1' } });
@@ -134,6 +136,10 @@ process.stdout.write(JSON.stringify({ok:true,status:'ok',operation,source:{name:
     assert.equal(extracted.structuredContent.artifactDir, join(dir, 'artifacts'));
     assert.deepEqual(extracted.structuredContent.source_refs, [{ page: 1, table: 1 }]);
     assert.deepEqual(extracted.structuredContent.data.tables[0].rows, [['Item', 'Units'], ['apples', '12'], ['pears', '7']]);
+    const rows = await client.callTool({ name: 'documents_extract_csv', arguments: { path: csv, ticker_column: 'Ticker' } });
+    assert.equal(rows.structuredContent.rows[0].values.Ticker, '  ABC ');
+    assert.equal(rows.structuredContent.rows[0].typed_ticker.typed, 'ABC');
+    assert.equal(rows.structuredContent.rows[0].values.ID, '0007');
 
     const rejected = await client.callTool({ name: 'documents_read', arguments: { path: outside } });
     assert.equal(rejected.structuredContent.ok, false);
