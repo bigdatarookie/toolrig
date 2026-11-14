@@ -6,8 +6,15 @@ export const queueErrorCodes = new Set(['queue_not_array', 'queue_invalid_id', '
   'queue_invalid_optional_metadata', 'queue_not_body_free']);
 export const active = ['pending', 'in-progress', 'blocked'];
 const text = z.string().min(1).max(500);
+const owner=text.regex(/^[^@\s]+@[^@\s]+$/),id=text.regex(/^[A-Za-z0-9_.:-]{1,200}$/);
+export const filterSchema=z.strictObject({states:z.enum(['all','active']),seat:text.optional(),
+  owners:z.array(owner).min(1).max(8).optional(),ids:z.array(id).min(1).max(32).optional()}).superRefine((v,ctx)=>{
+  if(v.ids&&!v.owners)ctx.addIssue({code:'custom',message:'ids_require_explicit_owners'});
+  if(v.owners&&v.seat)ctx.addIssue({code:'custom',message:'choose_project_seat_or_explicit_owners'});
+  for(const key of ['owners','ids'])if(v[key]&&new Set(v[key]).size!==v[key].length)ctx.addIssue({code:'custom',message:'duplicate_scope_selector'});
+});
 export const requestSchema = z.strictObject({ rig: text, project: text,
-  filter: z.strictObject({ states: z.enum(['all', 'active']), seat: text.optional() }),
+  filter: filterSchema,
   cursor: z.string().max(200).optional() });
 const stamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
 const nullText = v => typeof v === 'string' ? v : null;
@@ -21,13 +28,15 @@ export function tasksFrom(raw, scope) {
     if (!states.includes(q.state)) throw new Error('queue_invalid_state');
     // Native QueueRepository.rowToItem explicitly returns null for absent
     // legacy tags. Null is absence, not an untyped string or a guessed project.
-    if (q.tags !== null && (!Array.isArray(q.tags) || !q.tags.every(t => typeof t === 'string'))) throw new Error('queue_invalid_tags');
+    if (!(q.tags === null || (q.tags === undefined && scope.filter.owners)) && (!Array.isArray(q.tags) || !q.tags.every(t => typeof t === 'string'))) throw new Error('queue_invalid_tags');
     if (!stamp(q.tsCreated) || !stamp(q.tsUpdated)) throw new Error('queue_invalid_timestamps');
     ids.add(q.qitemId);
     if (['blockedOn', 'handedOffTo', 'handedOffFrom', 'sourceSession', 'summary', 'closureReason', 'closureTarget', 'humanIntent'].some(key => q[key] != null && typeof q[key] !== 'string')) throw new Error('queue_invalid_optional_metadata');
     if (Object.hasOwn(q, 'body') || Object.hasOwn(q, 'humanDetail')) throw new Error('queue_not_body_free');
     return { ...q, tags: q.tags ?? [] };
-  }).filter(q => q.tags.includes('project:' + scope.project) || q.targetRepo === scope.project);
+  }).filter(q => scope.filter.owners
+    ? scope.filter.owners.includes(q.destinationSession)&&(!scope.filter.ids||scope.filter.ids.includes(q.qitemId))
+    : q.tags.includes('project:' + scope.project) || q.targetRepo === scope.project);
   const owners = new Map(raw.map(q => [q.qitemId, q.destinationSession]));
   return Object.fromEntries(tasks.map(q => [q.qitemId, {
     id: q.qitemId, owner: q.destinationSession, sender: nullText(q.sourceSession), state: q.state,
@@ -61,7 +70,7 @@ export function seatsFrom(raw) {
   }));
 }
 export function select(all, scope) {
-  return { seats: Object.fromEntries(Object.entries(all.seats).filter(([id]) => !scope.filter.seat || id === scope.filter.seat)),
+  return { seats: Object.fromEntries(Object.entries(all.seats).filter(([id]) => scope.filter.owners?scope.filter.owners.includes(id):(!scope.filter.seat || id === scope.filter.seat))),
     tasks: Object.fromEntries(Object.entries(all.tasks).filter(([, t]) =>
       (!scope.filter.seat || t.owner === scope.filter.seat) &&
       (scope.filter.states === 'all' || active.includes(t.state)))) };

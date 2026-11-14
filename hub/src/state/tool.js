@@ -9,26 +9,41 @@ export class StateTool {
     Object.assign(this, { run, clock, cache });
   }
   async snapshot(input) {
-    const request = requestSchema.parse(input), { cursor, ...scope } = request;
+    const parsed=requestSchema.parse(input);
+    const request={...parsed,filter:{...parsed.filter,
+      ...(parsed.filter.owners?{owners:[...parsed.filter.owners].sort()}:{}),...(parsed.filter.ids?{ids:[...parsed.filter.ids].sort()}:{})}};
+    const {cursor,...scope}=request;
     const start = performance.now();
     const identity = await readSource('identity', sourceCommands.identity, this.run, this.clock);
     const i = identity.value?.identity;
     if (!identity.receipt.ok || !i?.rigName || !i?.sessionName) throw new Error('native_consumer_identity_unavailable');
-    // queue list has current-rig scope, no supported --rig. Never impersonate
-    // a different seat or silently widen to a cross-rig metadata dump.
+    // Default list is current-rig. Explicit destinations use the native CLI
+    // owner scope, including named other-rig owners; never impersonate identity
+    // or request an all-rigs dump. Seat/project mode retains its old boundary.
     if (i.rigName !== scope.rig || (scope.filter.seat && !scope.filter.seat.endsWith('@' + scope.rig))) throw new Error('scope_not_supported_for_native_consumer');
     const results = await Promise.all([
       readSource('version', sourceCommands.version, this.run, this.clock),
       readSource('seats', sourceCommands.seats(scope.rig), this.run, this.clock),
-      readSource('queue', [...sourceCommands.queue, ...(scope.filter.seat ? ['--destination', scope.filter.seat] : [])], this.run, this.clock),
+      ...(scope.filter.owners
+        ?scope.filter.owners.map(owner=>readSource('queue_owner:'+owner,[...sourceCommands.queue,'--destination',owner],this.run,this.clock))
+        :[readSource('queue',[...sourceCommands.queue,...(scope.filter.seat?['--destination',scope.filter.seat]:[])],this.run,this.clock)]),
     ]);
-    const [version, seats, queue] = results, sources = [identity, ...results].map(r => r.receipt);
+    const [version, seats, ...queues] = results, sources = [identity, ...results].map(r => r.receipt);
     const errors = sources.filter(s => !s.ok).map(s => s.name + ':' + s.error);
     const all = { seats: {}, tasks: {} };
     try { if (seats.receipt.ok) all.seats = seatsFrom(seats.value); } catch { errors.push('seats:schema_invalid'); }
-    try { if (queue.receipt.ok) all.tasks = tasksFrom(queue.value, scope); } catch (error) { errors.push('queue:' + (queueErrorCodes.has(error.message) ? error.message : 'schema_invalid_or_not_body_free')); }
+    const rows=[];
+    for(const [index,queue] of queues.entries()) {
+      if(!queue.receipt.ok)continue;
+      if(!Array.isArray(queue.value)){errors.push('queue:queue_not_array');continue;}
+      if(scope.filter.owners&&queue.value.some(q=>q?.destinationSession!==scope.filter.owners[index])){errors.push('queue:explicit_owner_filter_not_respected');continue;}
+      rows.push(...queue.value);
+      if(queue.value.length>=1000)errors.push(queue.receipt.name+':limit_reached; history_coverage_unknown');
+    }
+    try { all.tasks = tasksFrom(rows, scope); } catch (error) { errors.push('queue:' + (queueErrorCodes.has(error.message) ? error.message : 'schema_invalid_or_not_body_free')); }
+    const missingIds=scope.filter.ids?.filter(id=>!Object.hasOwn(all.tasks,id));
+    if(missingIds?.length)errors.push('queue:requested_ids_not_observed');
     if (seats.value?.truncated || seats.value?.entries?.length < seats.value?.totalNodes) errors.push('seats:truncated');
-    if (Array.isArray(queue.value) && queue.value.length >= 1000) errors.push('queue:limit_reached; history_coverage_unknown');
     if (typeof version.value !== 'string' || !/^\d+\.\d+\.\d+/.test(version.value)) errors.push('version:unknown');
     const selected = select(all, scope);
     const staleActivity = Object.values(selected.seats).filter(s => !s.activity || s.activity.stale === true || !s.activity.state || s.activity.state === 'unknown').map(s => s.id);
@@ -37,10 +52,12 @@ export class StateTool {
     const previous = hasCursor ? this.cache.read(cursor, i.sessionName, binding) : {};
     const coverage = { status: errors.length ? 'partial' : 'complete_for_bounded_sources', errors,
       atomic: false, nativeSnapshotAge: 'UNKNOWN; source_has_no_atomic_asOf_token', observation: 'independent_native_reads; intermediate_transitions_may_be_unobserved',
-      work: 'project_tag_or_targetRepo; assigned_metadata_only', seats: 'rig_context_not_project_membership',
+      work: scope.filter.owners?'explicit_owner_and_optional_ids; project_is_context_not_membership; assigned_metadata_only':'project_tag_or_targetRepo; assigned_metadata_only',
+      seats:scope.filter.owners?'consumer_rig_context; external_owner_seats_not_observed':'rig_context_not_project_membership',
+      ...(scope.filter.ids?{requestedIds:{observed:scope.filter.ids.filter(id=>!missingIds.includes(id)),missing:missingIds,meaning:'not_observed_in_bounded_owner_sources; deletion_not_established'}}:{}),
       blockerSince: 'unknown; compact_list_has_no_block_transition_time', staleActivity,
-      history: 'up_to_1000_current_records; no_transition_log_or_body_reads',
-      sourceFilter: scope.filter.seat ? 'destination_only; external_blocker_owner_may_be_unknown' : 'native_current_rig' };
+      history: scope.filter.owners?'up_to_1000_current_records_per_explicit_owner; no_transition_log_or_body_reads':'up_to_1000_current_records; no_transition_log_or_body_reads',
+      sourceFilter: scope.filter.owners?'explicit_destinations; local_daemon_metadata; no_rig_fanout_or_identity_override':scope.filter.seat ? 'destination_only; external_blocker_owner_may_be_unknown' : 'native_current_rig' };
     const base = { schemaVersion, status: errors.length ? 'partial' : 'ok', scope, consumer: i.sessionName,
       observedAt: new Date(this.clock()).toISOString(), sources, coverage,
       cost: { nativeCalls: sources.length, nativeResponseBytes: sources.reduce((n, s) => n + (s.bytes ?? 0), 0),
