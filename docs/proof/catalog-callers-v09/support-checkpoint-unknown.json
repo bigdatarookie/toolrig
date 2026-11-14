@@ -1,0 +1,21 @@
+{
+  "recipe_sha256": "8f944e9da2235e5235b18817fff41565b0a7ed873056ef3e5207c1b08ef04971",
+  "mode": "Offline replacement of NativeQueue only;accepted pure receipt/reconciliation functions retained;no native CLI/read/write/actor override",
+  "fault": "note throws without committing;journal empty before and on reconciliation",
+  "exit": 2,
+  "receipt": {
+    "operationId": "catalog-callers-035214-checkpoint-20261114",
+    "outcome": "unknown",
+    "source": null,
+    "elapsedMs": 0.09412500000000001,
+    "modelUsage": "UNKNOWN",
+    "writeAttempted": true,
+    "alreadyRecorded": false,
+    "mutationReplay": false
+  },
+  "counts": {
+    "noteAttempts": 1,
+    "journalReads": 2
+  },
+  "assertions": "PASS:UNKNOWN+exit2,writeAttempted=true,no confirmed-written field,one fake attempt/no replay;historical real positive receipts retained"
+}

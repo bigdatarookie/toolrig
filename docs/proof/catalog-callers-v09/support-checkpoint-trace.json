@@ -1,0 +1,75 @@
+{
+  "invocation": [
+    "node",
+    "/Users/garry/Documents/git/toolrig-package-d-install/hub/src/d-cli.js",
+    "trace",
+    "--qitem",
+    "qitem-20261114103815-035214349665d0fe",
+    "--query",
+    "caller_migration"
+  ],
+  "exit": 0,
+  "wall_seconds": 0.340137875,
+  "stdout_bytes": 1607,
+  "stderr_bytes": 0,
+  "result": {
+    "operationId": "qitem-20261114103815-035214349665d0fe",
+    "outcome": "observed",
+    "qitemId": "qitem-20261114103815-035214349665d0fe",
+    "owner": "coordination-support@toolrig",
+    "state": "in-progress",
+    "changed": {},
+    "source": {
+      "command": [
+        "rig",
+        "queue",
+        "show",
+        "qitem-20261114103815-035214349665d0fe",
+        "--json"
+      ]
+    },
+    "intent": {
+      "summary": "Migrate three useful catalog callers through real Toolrig functions",
+      "bodyRef": {
+        "command": [
+          "rig",
+          "queue",
+          "show",
+          "qitem-20261114103815-035214349665d0fe",
+          "--full",
+          "--json"
+        ]
+      }
+    },
+    "lineage": {
+      "parent": null,
+      "root": null,
+      "tail": [],
+      "count": 0,
+      "coverage": "native_refs_only; full_chain_remains_in_native_record"
+    },
+    "decisions": [
+      {
+        "value": "toolrig-d/1 {\"operationId\":\"catalog-callers-035214-checkpoint-20261114\",\"phase\":\"caller_migration_checkpoint\",\"decision\":\"Lead says no forced count;taskTrace consumed clarification transition34774;OpenTourDevOps no-fit;State owner-ID repair awaits accepted pin. Native remains valid.\",\"sourceRefs\":[\"native:qitem-20261114103815-035214349665d0fe:transition:34774\",\"platform-devops@opentour-rig:2026-11-14T10:50Z\",\"qitem-20261114103815-f542375eea5bb754\"]}",
+        "actor": "coordination-support@toolrig",
+        "observedAt": "2026-11-14T10:53:12.892Z",
+        "source": {
+          "qitemId": "qitem-20261114103815-035214349665d0fe",
+          "transitionId": 34843
+        }
+      }
+    ],
+    "evidence": {
+      "sources": [],
+      "extractedBytes": 0,
+      "budgetBytes": 3643,
+      "complete": true,
+      "memoryPolicy": "source_selection_only; no_delete_or_history_reset",
+      "compactor": "not_invoked; bounded_extracted_bytes_below_8000_tokens"
+    },
+    "nextAction": "not_inferred; see_native_obligation_and_source_refs",
+    "completeHistory": false,
+    "earnedMemoryReset": false
+  },
+  "purpose": "Verify checkpoint from actual shared write/reconcile caller is durable and addressable;no second mutation."
+}
