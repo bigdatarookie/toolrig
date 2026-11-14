@@ -1,0 +1,158 @@
+{
+  "invocation": [
+    "node",
+    "/Users/garry/Documents/git/toolrig-state-obligation-scope-v09/hub/src/state-cli.js",
+    "--rig",
+    "toolrig",
+    "--project",
+    "toolrig",
+    "--filter",
+    "all",
+    "--owner",
+    "coordination-support@toolrig",
+    "--owner",
+    "coordination-lead@toolrig",
+    "--owner",
+    "operator-agent@kernel",
+    "--id",
+    "qitem-20261114103815-035214349665d0fe",
+    "--id",
+    "qitem-toolrig-v09-d-inventory-lead-20261114",
+    "--id",
+    "qitem-toolrig-package-d-global-20261114"
+  ],
+  "exit": 0,
+  "wall_seconds": 0.792295834,
+  "stdout_bytes": 6076,
+  "stderr_bytes": 0,
+  "source_ref": "a8f47e9ffdd5404dabd93c41e313129f8e6529a4",
+  "source_merge": "67733a4b3e1f05eed847f087e3eeb460170a089e",
+  "scope": {
+    "rig": "toolrig",
+    "project": "toolrig",
+    "filter": {
+      "states": "all",
+      "owners": [
+        "coordination-lead@toolrig",
+        "coordination-support@toolrig",
+        "operator-agent@kernel"
+      ],
+      "ids": [
+        "qitem-20261114103815-035214349665d0fe",
+        "qitem-toolrig-package-d-global-20261114",
+        "qitem-toolrig-v09-d-inventory-lead-20261114"
+      ]
+    }
+  },
+  "status": "ok",
+  "coverage": {
+    "status": "complete_for_bounded_sources",
+    "errors": [],
+    "atomic": false,
+    "nativeSnapshotAge": "UNKNOWN; source_has_no_atomic_asOf_token",
+    "observation": "independent_native_reads; intermediate_transitions_may_be_unobserved",
+    "work": "explicit_owner_and_optional_ids; project_is_context_not_membership; assigned_metadata_only",
+    "seats": "consumer_rig_context; external_owner_seats_not_observed",
+    "requestedIds": {
+      "observed": [
+        "qitem-20261114103815-035214349665d0fe",
+        "qitem-toolrig-package-d-global-20261114",
+        "qitem-toolrig-v09-d-inventory-lead-20261114"
+      ],
+      "missing": [],
+      "meaning": "not_observed_in_bounded_owner_sources; deletion_not_established"
+    },
+    "blockerSince": "unknown; compact_list_has_no_block_transition_time",
+    "staleActivity": [],
+    "history": "up_to_1000_current_records_per_explicit_owner; no_transition_log_or_body_reads",
+    "sourceFilter": "explicit_destinations; local_daemon_metadata; no_rig_fanout_or_identity_override"
+  },
+  "observedAt": "2026-11-14T11:07:38.136Z",
+  "cost": {
+    "nativeCalls": 6,
+    "nativeResponseBytes": 518111,
+    "elapsedMs": 722,
+    "modelCallsInTool": 0,
+    "nativeTokenUsage": "UNKNOWN; no_provider_usage_read"
+  },
+  "cursor_present": true,
+  "raw_and_cursor": "PRIVATE_NOT_COMMITTED",
+  "root_keys": [
+    "schemaVersion",
+    "status",
+    "scope",
+    "consumer",
+    "observedAt",
+    "sources",
+    "coverage",
+    "cost",
+    "changed",
+    "cursor",
+    "reset_required",
+    "baseline"
+  ],
+  "selected_tasks": [
+    {
+      "id": "qitem-toolrig-v09-d-inventory-lead-20261114",
+      "owner": "coordination-lead@toolrig",
+      "state": "blocked",
+      "blocker": {
+        "ref": "qitem-d-audit-corrections-lead-20261114",
+        "owner": "coordination-lead@toolrig",
+        "since": null,
+        "ageSeconds": null,
+        "sinceCoverage": "not_exposed_by_compact_list"
+      },
+      "parentItem": null,
+      "source": {
+        "command": [
+          "queue",
+          "show",
+          "qitem-toolrig-v09-d-inventory-lead-20261114",
+          "--json"
+        ]
+      },
+      "summary": "Implement full D and inventory with real global consumers; return to retained Operator parent"
+    },
+    {
+      "id": "qitem-20261114103815-035214349665d0fe",
+      "owner": "coordination-support@toolrig",
+      "state": "in-progress",
+      "blocker": null,
+      "parentItem": null,
+      "source": {
+        "command": [
+          "queue",
+          "show",
+          "qitem-20261114103815-035214349665d0fe",
+          "--json"
+        ]
+      },
+      "summary": "Migrate three useful catalog callers through real Toolrig functions"
+    },
+    {
+      "id": "qitem-toolrig-package-d-global-20261114",
+      "owner": "operator-agent@kernel",
+      "state": "blocked",
+      "blocker": {
+        "ref": "qitem-toolrig-v09-d-inventory-lead-20261114",
+        "owner": "coordination-lead@toolrig",
+        "since": null,
+        "ageSeconds": null,
+        "sinceCoverage": "not_exposed_by_compact_list"
+      },
+      "parentItem": null,
+      "source": {
+        "command": [
+          "queue",
+          "show",
+          "qitem-toolrig-package-d-global-20261114",
+          "--json"
+        ]
+      },
+      "summary": "Глобально внедрить полный D, инвентаризировать tools/scripts; Lead Toolrig + Operator, hourly до завершения"
+    }
+  ],
+  "projection_correction": "Initial local proof projection looked for top-level tasks;corrected from the SAME saved raw baseline.tasks without another State call. Tool coverage/selectedIDs were correct throughout;no false-empty decision taken.",
+  "consumed_decision": "Own migration task remains in progress;Lead parent blocked on audit-corrections root,Operator parent blocked on Lead parent. Accepted State fix does not complete those outcomes;continue independent caller review and retain true parent blockers. All3requestedIDs present,including untagged Kernel parent."
+}
