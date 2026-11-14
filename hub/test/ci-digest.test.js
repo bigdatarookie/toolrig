@@ -88,6 +88,55 @@ test('failed job combines exact annotation and bounded log findings, redacts sec
   assert.ok(result.metrics.tokenEstimate.method.includes('rough estimate'));
 });
 
+test('preserved CI log TypeError survives passing test names containing failure', async t => {
+  const runId = 43170716031;
+  const jobId = 131023180972;
+  // These exact lines are excerpted from the preserved failed-ci-input.json reproducer.
+  // The passing Node test names contain "failure", preceding the actual exception in the log.
+  const log = [
+    '2026-11-12T06:52:38.7034016Z ✔ receipt copy failure cannot start a consumer (318.025323ms)',
+    '2026-11-12T06:52:38.7039990Z ✔ lifecycle malformed metadata creates no resource and retains validation failure (4.763572ms)',
+    '2026-11-12T06:52:38.7041569Z ✔ retention exception names owner/reason/release and is never claimed removed (286.798143ms)',
+    '2026-11-12T06:52:38.7044331Z ✔ scenario failure still reaches exact absence verification (293.362ms)',
+    '2026-11-12T06:52:38.7116391Z ✔ wrong full namespace retains failure without operation or import (45.573115ms)',
+    '2026-11-12T06:52:38.7120949Z ✔ private synthetic capture retains bounded failure body before adapter cleanup and restores hook (67.363572ms)',
+    '2026-11-12T06:52:38.7156714Z ✔ late success/error ignored even if fetch implementation ignores abort (1.098276ms)',
+    '2026-11-12T06:52:38.7175778Z ✔ latest selection wins when earlier transport ignores abort; errors retain caller state (10.807381ms)',
+    "2026-11-12T06:52:38.7199298Z   TypeError [Error]: Cannot read properties of undefined (reading 'research-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')",
+  ].join('\n');
+  const job = { id: jobId, run_id: runId, name: 'Test current', status: 'completed', conclusion: 'failure',
+    completed_at: '2026-11-12T06:52:38Z', check_run_url: null, steps: [
+      { name: 'Run shared author and QA command', number: 5, status: 'completed', conclusion: 'failure' },
+    ] };
+  const fetchImpl = async url => {
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}`)) return json({ id: runId, run_attempt: 1,
+      status: 'completed', conclusion: 'failure', head_sha: headSha,
+      html_url: `https://github.com/${repository}/actions/runs/${runId}` });
+    if (parsed.pathname.endsWith(`/actions/runs/${runId}/attempts/1/jobs`)) return json({ total_count: 1, jobs: [job] });
+    if (parsed.pathname.endsWith(`/actions/jobs/${jobId}/logs`)) return new Response(log);
+    return json({ message: 'unexpected fixture request' }, 500);
+  };
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) })
+    .digest({ repository, run_id: runId });
+  const findings = result.jobs[0].findings;
+  assert.equal(result.status, 'failure');
+  assert.ok(findings.some(finding => finding.errorType === 'TYPE_ERROR'));
+  assert.ok(findings.every(finding => !finding.message.includes('✔')));
+  assert.equal(result.partial, false);
+});
+
+test('TAP not ok failure lines are not mistaken for positive ok pass markers', async t => {
+  const log = '2026-11-12T06:52:38.7200000Z not ok 1 - test failure\n';
+  const { fetchImpl } = fixtureFetch({ jobs: [failedJob()], annotations: [], log });
+  const result = await new CiDigestService({ fetchImpl, cacheDir: await tempCache(t) })
+    .digest({ repository, run_id: runId });
+  const finding = result.jobs[0].findings.find(item => item.errorType === 'TEST_FAILURE');
+  assert.ok(finding);
+  assert.equal(finding.sourceRefs[0].line, 1);
+  assert.match(finding.sourceRefs[0].url, /actions\/runs\/100\/job\/202/);
+});
+
 test('passing, queued, canceled and skipped states stay distinct and do not fetch logs', async t => {
   const { fetchImpl, calls } = fixtureFetch({
     run: { status: 'completed', conclusion: 'success' },
