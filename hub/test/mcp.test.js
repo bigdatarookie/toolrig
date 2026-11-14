@@ -41,7 +41,7 @@ test('SDK MCP discovery and call share same service; caller cannot supply home/i
         TOOLRIG_GITHUB_API_URL: 'https://api.github.com', TOOLRIG_CI_CACHE_DIR: join(dir, 'ci-cache'), GH_TOKEN: '', GITHUB_TOKEN: '',
       } }));
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'ci_digest', 'state_snapshot']);
+    assert.deepEqual(tools.tools.map(t => t.name).sort(), ['availability_request', 'availability_status', 'ci_digest', 'machine_consume', 'machine_recall', 'machine_return', 'state_snapshot', 'task_trace']);
     const response = await client.callTool({ name: 'availability_status', arguments: {} });
     assert.equal(response.structuredContent.buckets.codex.windows[0].remainingPercent, 5);
     assert.equal(response.structuredContent.consumer, 'consumer@toolrig');
