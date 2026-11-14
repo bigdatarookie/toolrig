@@ -161,7 +161,9 @@ const a=process.argv.slice(2);let r;
 if(a[0]==='whoami')r={identity:{rigName:'fixture',sessionName:'owner@fixture'}};
 else if(a[0]==='--version'){console.log('0.7.7 (fixture)');process.exit(0);}
 else if(a[0]==='ps')r={entries:[],totalNodes:0,truncated:false};
-else if(a[0]==='queue')r=[];
+else if(a[0]==='queue'){
+ const owner=a[a.indexOf('--destination')+1];r=a.includes('--destination')?[{qitemId:owner==='owner@fixture'?'own':'parent',destinationSession:owner,state:'in-progress',tags:null,tsCreated:'2026-11-14T00:00:00Z',tsUpdated:'2026-11-14T00:00:00Z'}]:[];
+}
 else process.exit(1);
 console.log(JSON.stringify(r));`, { mode: 0o700 });
   const client = new Client({ name: 'state-consumer', version: '1' });
@@ -178,6 +180,8 @@ console.log(JSON.stringify(r));`, { mode: 0o700 });
       rig: 'fixture', project: 'fixture', filter: { states: 'active' }, cursor: first.structuredContent.cursor } });
     assert.equal(second.structuredContent.changed, false); assert.notEqual(second.isError, true);
     assert.deepEqual(Object.keys(second.structuredContent).sort(), ['changed', 'coverage', 'cursor', 'observedAt']);
+    const scoped=await client.callTool({name:'state_snapshot',arguments:{rig:'fixture',project:'fixture',filter:{states:'all',owners:['owner@fixture','operator@kernel'],ids:['own','parent']}}});
+    assert.equal(scoped.structuredContent.status,'ok');assert.deepEqual(Object.keys(scoped.structuredContent.baseline.tasks).sort(),['own','parent']);
     assert.equal(existsSync(db), false);
   } finally { await client.close(); }
 });

@@ -30,6 +30,7 @@ function setup(t) {
     const name = args[0] === 'whoami' ? 'identity' : args[0] === '--version' ? 'version' : args[0] === 'ps' ? 'seats' : 'queue';
     if (data[name] instanceof Error) throw data[name];
     if (typeof data[name] === 'string') return data[name];
+    if(name==='queue'&&args.includes('--destination')&&Array.isArray(data.queue))return JSON.stringify(data.queue.filter(q=>q.destinationSession===args[args.indexOf('--destination')+1]));
     return JSON.stringify(data[name]);
   } });
   const snap = cursor => tool.snapshot({ ...request, ...(cursor ? { cursor } : {}) });
@@ -194,4 +195,41 @@ test('nullable-tags compatibility does not accept malformed tags or bypass body-
   assert(bad.coverage.errors.includes('queue:queue_not_body_free'));
   assert(!JSON.stringify(bad).includes('DO_NOT_RETURN'));
   assert(!JSON.stringify(bad).includes('body-present'));
+});
+
+test('explicit owner/ID scope retains untagged own and cross-rig parent obligations, excludes unrelated work',async t=>{
+ const f=setup(t);
+ f.data.queue=[task('own',{tags:null,targetRepo:null}),task('parent',{destinationSession:'operator@kernel',tags:null,targetRepo:null}),
+   task('unrelated-same-owner'),task('unrelated-other-owner',{destinationSession:'other@fixture'})];
+ const old=await f.tool.snapshot({...request,filter:{states:'active',seat:'owner@fixture'}});
+ assert.equal(old.baseline.tasks.own,undefined);
+ const scoped=await f.tool.snapshot({...request,filter:{states:'active',owners:['owner@fixture','operator@kernel'],ids:['own','parent']}});
+ assert.equal(scoped.status,'ok');assert.deepEqual(Object.keys(scoped.baseline.tasks).sort(),['own','parent']);
+ assert.equal(scoped.baseline.tasks.parent.owner,'operator@kernel');
+ assert(scoped.coverage.work.includes('explicit_owner'));
+ assert(f.calls.every(a=>!a.includes('--full')&&!a.includes('show')&&!a.includes('--all-rigs')));
+});
+test('owner/ID cursors normalize sets, retain final states and never turn missing IDs into healthy empty',async t=>{
+ const f=setup(t);f.data.queue=[task('own',{tags:undefined}),task('parent',{tags:null,destinationSession:'operator@kernel'})];
+ const input={...request,filter:{states:'active',owners:['owner@fixture','operator@kernel'],ids:['own','parent']}};
+ const a=await f.tool.snapshot(input);assert.equal(a.status,'ok');
+ const b=await f.tool.snapshot({...input,filter:{...input.filter,owners:[...input.filter.owners].reverse(),ids:[...input.filter.ids].reverse()},cursor:a.cursor});
+ assert.equal(b.changed,false);assert.deepEqual(Object.keys(b).sort(),['changed','coverage','cursor','observedAt']);
+ f.data.queue[1].state='done';f.data.queue[1].closureReason='no-follow-on';
+ const c=await f.tool.snapshot({...input,cursor:b.cursor});assert.equal(c.critical[0].id,'parent');assert.equal(c.critical[0].state,'done');
+ f.data.queue=f.data.queue.filter(q=>q.qitemId!=='parent');
+ const d=await f.tool.snapshot({...input,cursor:c.cursor});assert.equal(d.status,'partial');assert.equal(d.changed,null);assert.equal(d.cursor,null);
+ assert.deepEqual(d.coverage.requestedIds.missing,['parent']);assert(d.coverage.errors.includes('queue:requested_ids_not_observed'));
+});
+test('explicit owner mode cannot widen accidentally or reuse a project cursor',async t=>{
+ const f=setup(t),a=await f.snap();
+ const b=await f.tool.snapshot({...request,filter:{states:'active',owners:['owner@fixture']},cursor:a.cursor});assert.equal(b.reset_required,true);
+ for(const filter of [
+  {states:'active',ids:['a']},{states:'active',owners:['owner@fixture'],seat:'owner@fixture'},
+  {states:'active',owners:['owner@fixture','owner@fixture']},{states:'active',owners:['malformed']},
+  {states:'active',owners:['owner@fixture'],ids:['a','a']},{states:'active',owners:['owner@fixture'],ids:['bad id']},
+ ]) {const before=f.calls.length;await assert.rejects(f.tool.snapshot({...request,filter}));assert.equal(f.calls.length,before);}
+ const tool=new StateTool({cache:f.cache,run:async args=>args[0]==='whoami'?JSON.stringify(f.data.identity):args[0]==='--version'?f.data.version:args[0]==='ps'?JSON.stringify(f.data.seats):JSON.stringify([task('other',{destinationSession:'unexpected@fixture'})])});
+ const bad=await tool.snapshot({...request,filter:{states:'active',owners:['owner@fixture']}});
+ assert.equal(bad.status,'partial');assert(bad.coverage.errors.includes('queue:explicit_owner_filter_not_respected'));assert.deepEqual(bad.baseline.tasks,{});
 });

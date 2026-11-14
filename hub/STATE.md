@@ -22,8 +22,30 @@ both returned seats and assigned tasks. Immediate parent is native handedOffFrom
 higher chain is not read. Summary is native metadata, bounded to200 characters
 with an explicit truncation marker; no inferred next action.
 
+For own/parent obligations without project tags, use explicit owner scope and
+optionally exact IDs. Repeat --owner and --id; these are selectors, never an
+identity override:
+
+```
+node /ABS/TOOLRIG/hub/src/state-cli.js --rig toolrig --project toolrig --filter all \
+  --owner coordination-lead@toolrig --owner operator-agent@kernel \
+  --id qitem-toolrig-v09-d-inventory-lead-20261114 \
+  --id qitem-toolrig-package-d-global-20261114
+```
+
+Explicit owners select assigned tasks independently of project tags/targetRepo;
+project is then context, not asserted membership. IDs narrow that owner union;
+unrelated tasks are excluded. At most8 owners and32 IDs; duplicates/malformed
+selectors, IDs without owners, and combining --seat with --owner are rejected.
+With no IDs, all matching owner tasks remain subject to the states filter. IDs
+also obey that states filter; use all to inspect terminal parents. Immediate
+parent references are not discovered by parsing bodies. Supply known parent IDs
+and their native owners explicitly. Legacy project-only and --seat behavior
+remain unchanged. Null tags (and absent tags in explicit-owner mode) do not hide
+owned work; malformed non-null tag types still fail closed.
+
 The same engine is SDK tool `state_snapshot` in the existing stdio Hub:
-`{rig,project,filter:{states:'active'|'all',seat?},cursor?}`. Identity comes from
+`{rig,project,filter:{states:'active'|'all',seat?,owners?:string[],ids?:string[]},cursor?}`. Identity comes from
 native whoami in the server's own seat environment, never an MCP consumer label.
 Use one stdio process per native consumer. Shared multi-consumer transport is not
 claimed. State discovery/calls do not initialize the Availability store.
@@ -32,11 +54,23 @@ claimed. State discovery/calls do not initialize the Availability store.
 
 The native queue-list CLI has no explicit --rig. This version verifies requested
 rig against native whoami and rejects other rigs. It never changes identity env
-or silently widens to --all-rigs. Do not impersonate a different seat to use it.
+or silently widens to --all-rigs. Explicit-owner mode uses one supported body-free
+queue list --destination read per named owner. Native CLI explicit destinations
+disable the implicit current-rig list filter, so a named kernel parent can be read
+without a rig dump; this remains local-daemon metadata, not remote-host fanout.
+Seat/activity metadata stays limited to the actual consumer rig: external-owner
+seat state is unobserved, never inferred stopped. Do not impersonate a different seat to use it.
 Commands are fixed argv (no shell): whoami, --version, ps --nodes --rig ...
 --no-cleanup with metadata fields, queue list --all --limit1000 --json (plus
---destination for a seat filter). No bodies, full queue records, transcripts,
+--destination for a seat filter or each explicit owner). No bodies, full queue records, transcripts,
 provider credentials/native DBs, captures, mutation commands or transition logs.
+Each owner read is capped at1000 current records. Missing requested IDs, any cap,
+unavailable source, inconsistent owner result or schema failure returns partial,
+changed=null and no new cursor; absence never proves closure/deletion. Coverage
+reports observed/missing requested IDs and the exact selection rule. ID filtering
+happens after bounded owner metadata reads, not through a new native query engine.
+Owner/ID sets are sorted for cursor binding; changing between project and explicit
+owner modes resets the comparison.
 Returned source commands/UTC timestamps support expansion; queue show and seat
 status are explicit separate consumer actions, not executed by this tool.
 
@@ -89,8 +123,8 @@ assignment's ordinary review handoff/park; no fake task is created for a delta.
 Source acceptance and actual Support consumer adoption are separate outcomes.
 
 Measurement records response bytes and explicitly labelled estimates, source
-calls/elapsed and correctness on matching scope/state. Four native calls per
-CLI invocation are a real cost; this can be worse than a small queue read.
+calls/elapsed and correctness on matching scope/state. Default/project invocation uses four native calls; explicit-owner mode uses
+three plus the number of named owners. These native reads are a real cost; this can be worse than a small queue read.
 Response reduction is not measured whole-prompt/provider billing savings.
 Provider usage, setup/author/reviewer/Support model cost and amortization remain
 UNKNOWN unless independently measured. Native activity output can dominate a
