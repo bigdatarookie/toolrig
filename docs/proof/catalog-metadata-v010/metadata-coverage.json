@@ -1,0 +1,1113 @@
+{
+  "schema": "toolrig.catalog-metadata-coverage/v1",
+  "assignment": "qitem-20261114123219-8789b9d280929142",
+  "observed_at": "2026-11-14T12:37:09.865Z",
+  "accepted_catalog_base": "7c48e4dec18f1aca9b92f292bb310ec4812f5916",
+  "authority": {
+    "qitem": "qitem-d-audit-corrections-lead-20261114",
+    "transition": 35645,
+    "at": "2026-11-14T12:31:37.625Z",
+    "actor": "operator-agent@kernel"
+  },
+  "method": "Explicit metadata paths;no broad recursive filesystem scan,launch,migration,model change or consumer test. Selected rig.yaml/CULTURE counterparts compared,not all manifest members hashed.",
+  "workspace": {
+    "root": "/Users/garry/.openrig/workspace",
+    "declaration": "/Users/garry/.openrig/workspace/workspace.yaml",
+    "projects": [
+      {
+        "id": "default",
+        "root": "."
+      },
+      {
+        "id": "polar",
+        "root": "/Users/garry/Documents/git/polar/polar-rig",
+        "rigs": [
+          "polar-rig"
+        ]
+      },
+      {
+        "id": "opentour",
+        "root": "/Users/garry/Documents/git/opentour/opentour-rig",
+        "rigs": [
+          "opentour-rig"
+        ]
+      },
+      {
+        "id": "toolrig",
+        "root": "/Users/garry/Documents/git/toolrig",
+        "rigs": [
+          "toolrig"
+        ]
+      }
+    ],
+    "top_level_scripts_directory": false,
+    "adapted_specs": [
+      {
+        "root": "/Users/garry/.openrig/workspace/adapted/factory",
+        "name": "factory",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.advisor",
+          "dev.build",
+          "dev.qa",
+          "dev.design",
+          "review.r1",
+          "review.r2"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "."
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/advisor-role.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      {
+        "root": "/Users/garry/.openrig/workspace/adapted/hill-climb-golden",
+        "name": "hill-climb-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.advisor",
+          "dev.build",
+          "dev.qa",
+          "dev.design",
+          "review.r1",
+          "review.r2"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/game-eval/golden/hill-climb-game"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/advisor-role.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      {
+        "root": "/Users/garry/.openrig/workspace/adapted/visual-ml-golden",
+        "name": "visual-ml-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.advisor",
+          "dev.build",
+          "dev.qa",
+          "dev.design",
+          "review.r1",
+          "review.r2"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/game-eval-worktrees/visual-ml/golden/visual-ml-experiment"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/advisor-role.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      }
+    ],
+    "recovery_archives": "FILENAMES_ONLY_NOT_OPENED;historical recovery bundles excluded from current tooling",
+    "rosters": "FILENAMES_ONLY;no live configuration inferred"
+  },
+  "polar_runtime": {
+    "command": "rig ps --nodes --rig polar-rig --json --fields logicalId,canonicalSessionName,intentionallyStopped,sessionStatus,lifecycleState",
+    "entries": [
+      {
+        "logicalId": "orch.lead",
+        "canonicalSessionName": "orch-lead@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "data.engineer",
+        "canonicalSessionName": "data-engineer@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "data.researcher",
+        "canonicalSessionName": "data-researcher@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "platform.engineer",
+        "canonicalSessionName": "platform-engineer@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "platform.qa",
+        "canonicalSessionName": "platform-qa@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "platform.sre",
+        "canonicalSessionName": "platform-sre@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "quant.a",
+        "canonicalSessionName": "quant-a@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "quant.b",
+        "canonicalSessionName": "quant-b@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "quant.validator",
+        "canonicalSessionName": "quant-validator@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "orch.architect",
+        "canonicalSessionName": "orch-architect@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "platform.qa-system",
+        "canonicalSessionName": "platform-qa-system@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      },
+      {
+        "logicalId": "platform.qa-system-2",
+        "canonicalSessionName": "platform-qa-system-2@polar-rig",
+        "intentionallyStopped": false,
+        "sessionStatus": "running",
+        "lifecycleState": "running"
+      }
+    ],
+    "totalNodes": 12,
+    "truncated": false,
+    "scope": "Running state corrects stopped metadata only;does not establish document-tool or whole-D adoption."
+  },
+  "topology": {
+    "root": "/Users/garry/.openrig/topology",
+    "authored_policy_pointer": "/Users/garry/.openrig/topology/CULTURE.md:15",
+    "policy_source": "/Users/garry/Documents/git/toolrig/docs/GLOBAL_CONTEXT_POLICY.md",
+    "learned_root": "/Users/garry/.openrig/topology/LEARNED.md",
+    "rig_roots_without_root_learned": [
+      "toolrig",
+      "polar-rig",
+      "opentour-rig",
+      "alfarig",
+      "kernel",
+      "ui-team"
+    ],
+    "scope": "Top-level/rig-level filenames and authored CULTURE pointer;no recursive seat/pod learned-memory read,transcript or private payload"
+  },
+  "installed_specs": [
+    {
+      "id": "alfarig",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/alfarig",
+        "name": "alfarig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [
+          {
+            "path": "SPEC.md",
+            "required": true,
+            "delivery_hint": "guidance_merge"
+          },
+          {
+            "path": "docs/DEVELOPMENT.md",
+            "required": true,
+            "delivery_hint": "guidance_merge"
+          },
+          {
+            "path": "docs/RESOURCES.md",
+            "required": true,
+            "delivery_hint": "guidance_merge"
+          }
+        ],
+        "startup_action_types": [],
+        "policy_pointer_files": [
+          "/Users/garry/.openrig/specs/alfarig/CULTURE.md"
+        ],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "org.lead",
+          "systems.research",
+          "systems.architect",
+          "dev.devops",
+          "dev.developer",
+          "dev.qa"
+        ],
+        "member_count": 6,
+        "declared_cwds": [
+          "."
+        ],
+        "member_startup_files": [
+          {
+            "path": "docs/STARTUP.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "docs/ARCHITECT_STARTUP.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/Documents/git/alfarig",
+        "name": "alfarig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "basis": "Workspace project declaration or reused Alfarig owner source reference"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "hill-climb-golden",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/hill-climb-golden",
+        "name": "hill-climb-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.advisor",
+          "dev.build",
+          "dev.qa",
+          "dev.design",
+          "review.r1",
+          "review.r2"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/game-eval/golden/hill-climb-game"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/advisor-role.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/.openrig/workspace/adapted/hill-climb-golden",
+        "name": "hill-climb-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "basis": "Explicit workspace-adapted counterpart with byte equality;original install direction NOT_ESTABLISHED"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "opentour-rig",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/opentour-rig",
+        "name": "opentour-rig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [
+          {
+            "path": "guidance/common.md",
+            "required": true,
+            "delivery_hint": "guidance_merge"
+          }
+        ],
+        "startup_action_types": [],
+        "policy_pointer_files": [
+          "/Users/garry/.openrig/specs/opentour-rig/CULTURE.md"
+        ],
+        "manifest": {
+          "path": "/Users/garry/.openrig/specs/opentour-rig/MANIFEST.sha256",
+          "member_count": 32,
+          "verification": "MEMBER_COUNT_ONLY_NO_BULK_HASH_AUDIT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "data.engineer",
+          "platform.developer",
+          "platform.qa-code",
+          "platform.qa-system",
+          "platform.devops",
+          "campaign.creative",
+          "campaign.designer",
+          "campaign.operator"
+        ],
+        "member_count": 9,
+        "declared_cwds": [
+          ".."
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/data-engineer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/developer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/qa-code.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/qa-system.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/devops.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/creative.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/designer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/campaign-operator.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/Documents/git/opentour/opentour-rig",
+        "name": "opentour-rig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "basis": "Workspace project declaration or reused Alfarig owner source reference"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "polar-rig",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/polar-rig",
+        "name": "polar-rig",
+        "version": "0.42",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [
+          "/Users/garry/.openrig/specs/polar-rig/CULTURE.md"
+        ],
+        "manifest": {
+          "path": "/Users/garry/.openrig/specs/polar-rig/MANIFEST.sha256",
+          "member_count": 26,
+          "verification": "MEMBER_COUNT_ONLY_NO_BULK_HASH_AUDIT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.architect",
+          "data.researcher",
+          "data.engineer",
+          "quant.a",
+          "quant.b",
+          "quant.validator",
+          "platform.engineer",
+          "platform.sre",
+          "platform.qa",
+          "platform.qa-system",
+          "platform.qa-system-2"
+        ],
+        "member_count": 12,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/polar"
+        ],
+        "member_startup_files": [
+          {
+            "path": "COMMON.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/architect.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/data-researcher.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/data-engineer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/quant-a.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/quant-b.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/validator.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/platform-engineer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/devops.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/qa-code.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/qa-system.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/Documents/git/polar/polar-rig",
+        "name": "polar-rig",
+        "version": "0.42",
+        "culture_file": "CULTURE.md",
+        "basis": "Workspace project declaration or reused Alfarig owner source reference"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "toolrig",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/toolrig",
+        "name": "toolrig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [
+          {
+            "path": "guidance/common.md",
+            "required": true,
+            "delivery_hint": "guidance_merge"
+          }
+        ],
+        "startup_action_types": [],
+        "policy_pointer_files": [
+          "/Users/garry/.openrig/specs/toolrig/CULTURE.md"
+        ],
+        "manifest": {
+          "path": "/Users/garry/.openrig/specs/toolrig/MANIFEST.sha256",
+          "member_count": 23,
+          "verification": "MEMBER_COUNT_ONLY_NO_BULK_HASH_AUDIT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "coordination.lead",
+          "coordination.support",
+          "tools.hub",
+          "tools.automation",
+          "infrastructure.engineer",
+          "infrastructure.secrets",
+          "verification.qa"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "."
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/coordination-lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/coordination-support.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/tools-hub.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/tools-automation.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/infrastructure-engineer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/infrastructure-secrets.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/verification-qa.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/Documents/git/toolrig",
+        "name": "toolrig",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "basis": "Workspace project declaration or reused Alfarig owner source reference"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "ui-prototype-5b3r",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/ui-prototype-5b3r",
+        "name": "ui-prototype-5b3r",
+        "version": "0.3",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.advisor",
+          "orch.lead",
+          "build.build1",
+          "build.build2",
+          "build.build3",
+          "build.build4",
+          "review.r1",
+          "review.r2",
+          "review.r3"
+        ],
+        "member_count": 9,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/openrig-exp"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/advisor.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/maker.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/reviewer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "status": "EXACT_AUTHORED_COUNTERPART_NOT_ESTABLISHED",
+        "next_owner": "operator-agent@kernel"
+      },
+      "copy_comparison": {
+        "status": "NOT_RUN_WITHOUT_EXACT_COUNTERPART"
+      }
+    },
+    {
+      "id": "ui-prototype-team",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/ui-prototype-team",
+        "name": "ui-prototype-team",
+        "version": "0.3",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.advisor",
+          "orch.lead",
+          "build.build1",
+          "build.build2",
+          "build.build3",
+          "build.build4",
+          "review.r1",
+          "review.r2",
+          "review.r3"
+        ],
+        "member_count": 9,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/openrig-exp"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/advisor.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "RESOURCE_CATALOG.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "DESIGN_SYSTEM.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "BROWSER_POLICY.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "VISUAL_ITERATION_PROTOCOL.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "OBSERVATION_VIEW.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "ASSET_CACHE.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/maker.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/reviewer.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "status": "EXACT_AUTHORED_COUNTERPART_NOT_ESTABLISHED",
+        "next_owner": "operator-agent@kernel"
+      },
+      "copy_comparison": {
+        "status": "NOT_RUN_WITHOUT_EXACT_COUNTERPART"
+      }
+    },
+    {
+      "id": "ui-team",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/ui-team",
+        "name": "ui-team",
+        "version": "0.3",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [
+          "/Users/garry/.openrig/specs/ui-team/CULTURE.md"
+        ],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.advisor",
+          "orch.creative",
+          "orch.lead",
+          "build.build1",
+          "build.build2",
+          "build.build3",
+          "build.build4",
+          "qa.qa1",
+          "qa.qa2"
+        ],
+        "member_count": 9,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/openrig-exp"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/advisor.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "VISUAL_PRINCIPLES.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/creative.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "RESOURCE_CATALOG.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/lead.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/maker.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/qa.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "status": "EXACT_AUTHORED_COUNTERPART_NOT_ESTABLISHED",
+        "next_owner": "operator-agent@kernel"
+      },
+      "copy_comparison": {
+        "status": "NOT_RUN_WITHOUT_EXACT_COUNTERPART"
+      }
+    },
+    {
+      "id": "visual-ml-golden",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/visual-ml-golden",
+        "name": "visual-ml-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [],
+        "startup_action_types": [],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "orch.advisor",
+          "dev.build",
+          "dev.qa",
+          "dev.design",
+          "review.r1",
+          "review.r2"
+        ],
+        "member_count": 7,
+        "declared_cwds": [
+          "/Users/garry/Documents/git/game-eval-worktrees/visual-ml/golden/visual-ml-experiment"
+        ],
+        "member_startup_files": [
+          {
+            "path": "guidance/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          },
+          {
+            "path": "guidance/advisor-role.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "root": "/Users/garry/.openrig/workspace/adapted/visual-ml-golden",
+        "name": "visual-ml-golden",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "basis": "Explicit workspace-adapted counterpart with byte equality;original install direction NOT_ESTABLISHED"
+      },
+      "copy_comparison": {
+        "rig.yaml": "BYTE_EQUAL",
+        "CULTURE.md": "BYTE_EQUAL"
+      }
+    },
+    {
+      "id": "workshop",
+      "installed": {
+        "root": "/Users/garry/.openrig/specs/workshop",
+        "name": "workshop",
+        "version": "0.2",
+        "culture_file": "CULTURE.md",
+        "startup_files": [
+          {
+            "path": "startup/context.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ],
+        "startup_action_types": [
+          "startup_proof"
+        ],
+        "policy_pointer_files": [],
+        "manifest": {
+          "status": "NOT_PRESENT"
+        },
+        "env": "NOT_PROJECTED",
+        "runtime_delivery": "NOT_TESTED_BY_CATALOG",
+        "member_ids": [
+          "orch.lead",
+          "dev.build",
+          "dev.review",
+          "dev.qa"
+        ],
+        "member_count": 4,
+        "declared_cwds": [
+          "."
+        ],
+        "member_startup_files": [
+          {
+            "path": "startup/lead-first-move.md",
+            "required": true,
+            "delivery_hint": "send_text"
+          }
+        ]
+      },
+      "source": {
+        "status": "EXACT_AUTHORED_COUNTERPART_NOT_ESTABLISHED",
+        "next_owner": "operator-agent@kernel"
+      },
+      "copy_comparison": {
+        "status": "NOT_RUN_WITHOUT_EXACT_COUNTERPART"
+      }
+    }
+  ],
+  "future_rigs": {
+    "declaration": "Authored topology CULTURE + installed selected CULTURE/startup references observed",
+    "automatic_delivery": "NOT_ESTABLISHED",
+    "limits": "No new rig created;no new-startup/composition execution or automatic payload delivery verified. Existing read-on-demand pointer/broadcast is not automatic coverage.",
+    "next_owner": "operator-agent@kernel",
+    "next_action": "Use next authorized real new-rig startup to verify supported policy composition/receipt;locate exact authored counterparts for unmatched installed specs,without creating a demo.",
+    "counterpart_limit": "Six selected source/counterpart pairs compare byte-equal. Four are declared project/owner roots;two are workspace adaptations with installation direction unproven. Four installed authored counterparts remain unresolved."
+  },
+  "excluded": [
+    "provider homes and provider histories",
+    "transcripts",
+    "auth/credential stores and config values",
+    "private corporate/CRM/research payloads",
+    "benchmark task/prompt/test/gold/verifier contents",
+    "archives/backups and old installed spec snapshots",
+    "recursive seat/pod learned-memory evidence",
+    "unrelated user folders"
+  ],
+  "unknowns": [
+    "Unmatched installed-spec authored sources",
+    "Automatic future-rig policy delivery",
+    "Steady caller adoption and natural same-scope operational delta",
+    "Paired/provider/net savings"
+  ],
+  "policy_source_copy": {
+    "source": "/Users/garry/Documents/git/toolrig/docs/GLOBAL_CONTEXT_POLICY.md",
+    "installed": "/Users/garry/.openrig/specs/toolrig/docs/GLOBAL_CONTEXT_POLICY.md",
+    "byte_equal": true,
+    "source_status": "OPERATOR_AUTHORED_CANONICAL_UNTRACKED_FILE_IN_OWNER_DIRTY_CHECKOUT",
+    "accepted_catalog_base_contains_policy_file": false,
+    "scope": "Explicit source/installed policy comparison only;catalog PR does not commit or overwrite the owner policy."
+  },
+  "project_scripts": {
+    "root": "/Users/garry/Documents/git/polar/scripts",
+    "filenames": [
+      "fixture.py",
+      "polar_qa.py",
+      "polar_state.py",
+      "ops.py",
+      "polar-package.mjs",
+      "polar-local.mjs",
+      "polar-docker.mjs",
+      "polar-retained-mounts.mjs",
+      "access_journal.py",
+      "access-interaction.mjs"
+    ],
+    "source_inspection": "Python AST top-level docstrings/function names and first18lines of the five named JS modules;exact filename imports in scripts/ plus README fixture caller. No operation executed.",
+    "source_callers": [
+      {
+        "from": "polar-local.mjs:161",
+        "to": "polar-package.mjs"
+      },
+      {
+        "from": "polar-local.mjs:167",
+        "to": "polar-docker.mjs"
+      },
+      {
+        "from": "polar-docker.mjs:8",
+        "to": "polar-retained-mounts.mjs"
+      },
+      {
+        "from": "README.md:93",
+        "to": "scripts/fixture.py"
+      }
+    ],
+    "runtime_use": "NOT_ESTABLISHED_BY_THIS_SOURCE_INVENTORY",
+    "other_declared_roots": {
+      "opentour_tools": "Known six filenames agree with existing catalog;existing source/callers reused,private artifacts excluded",
+      "alfarig_scripts": "Existing gateway/start/configure/sync/tunnel entries reused;provider-token.py contents excluded",
+      "openrig_exp": "No top-level scripts/tools directory;known task-addressed experiment subtrees reused"
+    }
+  },
+  "kernel_operator_receipts": {
+    "root": "/Users/garry/.openrig/shared-docs/rigs/kernel/state/operator",
+    "selected": [
+      "package-d-owner-state-consumer-20261114.md",
+      "d-audit-corrections-20261114.md",
+      "polar-watchdog-resume-fix-20261114.md",
+      "alfarig-v04-toolrig-v010-activation-20261114.md"
+    ],
+    "method": "Top-level filenames then four selected metadata receipts;no bulk evidence,trace,auth or private payload read.",
+    "result": "Existing Operator State replacement receipt preserved;resume and v010 install ownership preserved;activation closure does not complete wholeD/runner service."
+  }
+}

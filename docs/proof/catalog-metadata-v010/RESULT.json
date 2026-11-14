@@ -1,0 +1,79 @@
+{
+  "schema": "toolrig.catalog-metadata-correction/v1",
+  "assignment": "qitem-20261114123219-8789b9d280929142",
+  "base": "7c48e4dec18f1aca9b92f292bb310ec4812f5916",
+  "updated_at": "2026-11-14T12:41:04.095808+00:00",
+  "changed_top_level_fields": [
+    "scope",
+    "source_roots",
+    "tools",
+    "evidence",
+    "adoption_by_group",
+    "migrated_callers",
+    "residuals",
+    "coverage_summary"
+  ],
+  "new_root_ids": [
+    "installed-spec-metadata",
+    "workspace-adapted-specs",
+    "polar-operational-scripts"
+  ],
+  "new_tool_ids": [
+    "global-context-policy",
+    "native-spec-library",
+    "polar-execution-helpers",
+    "polar-storage-ops",
+    "polar-access-records"
+  ],
+  "counts": {
+    "source_points": 25,
+    "tool_entries": 39,
+    "evidence_entries": 24,
+    "metadata_extension_roots_rechecked": [
+      "toolrig-canonical",
+      "toolrig-main",
+      "kernel-workspace",
+      "kernel-operator-state",
+      "topology",
+      "polar-policy",
+      "installed-spec-metadata",
+      "workspace-adapted-specs",
+      "polar-operational-scripts"
+    ],
+    "selected_installed_specs": 10,
+    "unmatched_installed_source_counterparts": 4,
+    "unavailable_historical_paths": [
+      "old-doc-service",
+      "old-ci-worktree"
+    ],
+    "global_complete": false,
+    "note": "Bounded metadata coverage,not all-source/plugin/runtime/consumer census. Historical observations retain their dated refs;no all-entry freshness claim.",
+    "caller_migration_note": "PR22 accepted integration preserved;selective real Support/Kernel use,DR negative fit,natural same-scope operational delta UNPROVEN and paired/provider/net savings UNKNOWN.",
+    "exact_source_copy_pairs": 6,
+    "counterpart_limit": "Four project/owner-referenced counterpart roots plus two byte-equal workspace-adapted counterpart roots. The latter correspondence does not prove original installation direction."
+  },
+  "preserved": [
+    "All34prior tool IDs/decisions and historical evidence refs",
+    "Accepted PR22 Support/Kernel actual caller receipts and DR negative fit",
+    "Unknown provider/net savings and no natural same-scope operational owner-mode delta claim",
+    "Existing rollout/runner/migration owners;no deployment or consumer wave"
+  ],
+  "remaining": [
+    {
+      "owner": "operator-agent@kernel",
+      "action": "Resolve4unmatched installed authored sources and verify actual automatic delivery at next authorized natural new-rig startup",
+      "qitem": "qitem-toolrig-package-d-global-20261114"
+    },
+    {
+      "owner": "Existing Automation/Infra/OrgLead",
+      "action": "Ordinary CLI/service,effective clock and exact-owner return work continues;prior v08proof is not this acceptance",
+      "qitem": "qitem-toolrig-v08-runner-source-20261113"
+    },
+    {
+      "owner": "Support/PolarDR",
+      "action": "Wait for a real fitting document/source operation;native remains valid for tiny owned queues",
+      "qitem": "qitem-toolrig-v06-polar-adoption-20261113"
+    }
+  ],
+  "scope_limit": "Selected counterpart equality is not installation provenance or automatic delivery. Known historical evidence retained with explicit historical markers;other entries are not globally refreshed."
+}
