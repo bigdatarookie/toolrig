@@ -5,6 +5,11 @@ const MIN_SOURCE_TOKENS = 8000;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const HEALTH_TIMEOUT_MS = 2_000;
 const tokenizer = new Tiktoken(o200kBase);
+// Sanitized local gateway metadata for the configured model. Do not apply this
+// ceiling to another model alias without its own verified limits.
+const MODEL_LIMITS = new Map([
+  ['Qwen3.8-27B', { input: 262_144, output: 262_144 }],
+]);
 
 const SYSTEM_PROMPT = [
   'You compact already-extracted source material for a separate consumer.',
@@ -81,13 +86,14 @@ function parseSummary(content, refs) {
   };
 }
 
-function fallback(reason, sourceTokens = null, elapsedMs = 0) {
+function fallback(reason, sourceTokens = null, elapsedMs = 0, details = {}) {
   return { status: 'direct_source', reason, source_tokens_o200k: sourceTokens,
-    model_calls: 0, elapsed_ms: elapsedMs };
+    model_calls: 0, elapsed_ms: elapsedMs, ...details };
 }
 
 export class QwenCompactor {
   constructor({ endpoint, healthUrl, model, apiKey, fetchImpl = fetch,
+    maxInputTokens = null, maxOutputTokens = null,
     timeoutMs = DEFAULT_TIMEOUT_MS, healthTimeoutMs = HEALTH_TIMEOUT_MS }) {
     this.endpoint = new URL(endpoint);
     if (!isLoopback(this.endpoint)) throw new Error('qwen_endpoint_must_be_loopback_http');
@@ -96,18 +102,25 @@ export class QwenCompactor {
     this.model = model;
     this.apiKey = apiKey;
     this.fetchImpl = fetchImpl;
+    this.maxInputTokens = maxInputTokens;
+    this.maxOutputTokens = maxOutputTokens;
     this.timeoutMs = timeoutMs;
     this.healthTimeoutMs = healthTimeoutMs;
   }
 
   async compact({ question, text, sourceRefs, exactFacts = [], consumerWindowTokens,
-    consumerTokensUsed, consumerReserveTokens = 512, qwenEligible = false }) {
+    consumerTokensUsed, consumerReserveTokens = 512, qwenEligible = false,
+    buildConsumerEnvelope = output => output }) {
     const start = performance.now();
     if (typeof text !== 'string' || !text) return fallback('no_unstructured_text');
     const sourceTokens = countO200kTokens(text);
     if (sourceTokens < MIN_SOURCE_TOKENS) return fallback('below_8000_extracted_o200k_tokens', sourceTokens);
     if (!qwenEligible) return fallback('source_not_marked_local_qwen_eligible', sourceTokens);
     if (typeof question !== 'string' || !question.trim()) return fallback('question_required', sourceTokens);
+    if (!Number.isInteger(this.maxInputTokens) || this.maxInputTokens < 1 ||
+        !Number.isInteger(this.maxOutputTokens) || this.maxOutputTokens < 1) {
+      return fallback('qwen_model_context_unknown', sourceTokens);
+    }
     if (!Number.isInteger(consumerWindowTokens) || consumerWindowTokens < 1 ||
         !Number.isInteger(consumerTokensUsed) || consumerTokensUsed < 0 ||
         !Number.isInteger(consumerReserveTokens) || consumerReserveTokens < 0) {
@@ -118,19 +131,40 @@ export class QwenCompactor {
     const refs = sourceIds(sourceRefs);
     if (!refs) return fallback('source_locators_required', sourceTokens);
     if (!Array.isArray(exactFacts)) return fallback('exact_facts_must_be_an_array', sourceTokens);
-    const fixedOutputTokens = countO200kTokens(JSON.stringify({
-      exact_facts: exactFacts,
-      source_refs: sourceRefs,
+    const user = JSON.stringify({ question, exact_facts: exactFacts, source_refs: refs, source_text: text });
+    const messages = [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: user }];
+    const inferenceInputTokens = countO200kTokens(JSON.stringify(messages));
+    if (inferenceInputTokens > this.maxInputTokens) {
+      return fallback('qwen_input_exceeds_model_limit', sourceTokens, 0, {
+        inference_input_tokens_o200k: inferenceInputTokens,
+        model_max_input_tokens: this.maxInputTokens,
+      });
+    }
+
+    const outputShell = {
       status: 'compacted',
+      reason: null,
       model: this.model,
       source_tokens_o200k: sourceTokens,
+      inference_input_tokens_o200k: inferenceInputTokens,
+      model_max_input_tokens: this.maxInputTokens,
       output_tokens_o200k: 0,
       total_output_budget_o200k: consumerOutputBudget,
       model_max_output_o200k: 0,
       model_calls: 1,
       elapsed_ms: 0,
-    }));
-    const maxOutputTokens = consumerOutputBudget - fixedOutputTokens;
+      summary: { exact_facts: exactFacts, facts: [], limits: [], unknowns: [],
+        source_refs: refs.map(item => item.ref) },
+    };
+    let fixedEnvelopeTokens;
+    try {
+      const serialized = JSON.stringify(buildConsumerEnvelope(outputShell));
+      if (typeof serialized !== 'string') throw new TypeError('consumer_envelope_not_serializable');
+      fixedEnvelopeTokens = countO200kTokens(serialized);
+    } catch {
+      return fallback('consumer_envelope_invalid', sourceTokens);
+    }
+    const maxOutputTokens = Math.min(this.maxOutputTokens, consumerOutputBudget - fixedEnvelopeTokens);
     if (maxOutputTokens < 128) return fallback('insufficient_consumer_window', sourceTokens);
 
     let health;
@@ -153,7 +187,6 @@ export class QwenCompactor {
       return fallback('gateway_busy', sourceTokens, Math.round(performance.now() - start));
     }
 
-    const user = JSON.stringify({ question, exact_facts: exactFacts, source_refs: refs, source_text: text });
     let response;
     try {
       response = await this.fetchImpl(this.endpoint, {
@@ -162,7 +195,7 @@ export class QwenCompactor {
         headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           model: this.model,
-          messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: user }],
+          messages,
           temperature: 0,
           max_tokens: maxOutputTokens,
           chat_template_kwargs: { enable_thinking: false },
@@ -197,21 +230,32 @@ export class QwenCompactor {
         Math.round(performance.now() - start)), model_calls: 1 };
     }
     const output = {
-      status: 'compacted',
-      reason: null,
-      source_tokens_o200k: sourceTokens,
-      output_tokens_o200k: 0,
-      total_output_budget_o200k: consumerOutputBudget,
+      ...outputShell,
       model_max_output_o200k: maxOutputTokens,
-      model: this.model,
-      model_calls: 1,
       elapsed_ms: Math.round(performance.now() - start),
       summary: { exact_facts: exactFacts, ...summary },
     };
     let finalOutputTokens = 0;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      output.output_tokens_o200k = finalOutputTokens;
-      finalOutputTokens = countO200kTokens(JSON.stringify(output));
+    let stableEnvelopeCount = false;
+    try {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        output.output_tokens_o200k = finalOutputTokens;
+        const serializedEnvelope = JSON.stringify(buildConsumerEnvelope(output));
+        if (typeof serializedEnvelope !== 'string') throw new TypeError('consumer_envelope_not_serializable');
+        const measured = countO200kTokens(serializedEnvelope);
+        if (measured === finalOutputTokens) {
+          stableEnvelopeCount = true;
+          break;
+        }
+        finalOutputTokens = measured;
+      }
+    } catch {
+      return { ...fallback('consumer_envelope_invalid', sourceTokens,
+        Math.round(performance.now() - start)), model_calls: 1 };
+    }
+    if (!stableEnvelopeCount) {
+      return { ...fallback('consumer_envelope_unstable', sourceTokens,
+        Math.round(performance.now() - start)), model_calls: 1 };
     }
     output.output_tokens_o200k = finalOutputTokens;
     if (finalOutputTokens > consumerOutputBudget) {
@@ -228,8 +272,10 @@ export function configuredQwenCompactor(env = process.env, fetchImpl = fetch) {
   if (!apiKey || !model) return null;
   const endpoint = env.TOOLRIG_QWEN_API_URL || 'http://127.0.0.1:18583/v1/chat/completions';
   const healthUrl = env.TOOLRIG_QWEN_HEALTH_URL || 'http://127.0.0.1:18583/__alfarig_health';
+  const limits = MODEL_LIMITS.get(model) ?? {};
   try {
-    return new QwenCompactor({ endpoint, healthUrl, model, apiKey, fetchImpl });
+    return new QwenCompactor({ endpoint, healthUrl, model, apiKey, fetchImpl,
+      maxInputTokens: limits.input ?? null, maxOutputTokens: limits.output ?? null });
   } catch {
     return null;
   }

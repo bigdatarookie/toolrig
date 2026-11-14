@@ -52,6 +52,39 @@ and deterministic CSV reader. Set `TOOLRIG_DOCUMENTS_ROOT` to enable
 `documents_inspect`, `documents_read`, `documents_render`, and
 `documents_extract_tables`:
 
+### Isolated local install and invocation
+
+For a local Toolrig-owned install, use an accepted Toolrig checkout and a
+dedicated data directory. This installs the pinned Python package and Hub
+dependencies without changing global PATH, MCP client configuration, active
+MCP processes, or a user document root:
+
+```sh
+SOURCE_ROOT=/absolute/path/to/accepted/toolrig-checkout
+INSTALL_ROOT=/absolute/path/to/toolrig-owned/package-d-install
+mkdir -p "$INSTALL_ROOT"
+python3.11 -m venv "$INSTALL_ROOT/python"
+UV_PROJECT_ENVIRONMENT="$INSTALL_ROOT/python" uv sync --locked --no-dev --project "$SOURCE_ROOT"
+npm --prefix "$SOURCE_ROOT/hub" ci --ignore-scripts
+"$INSTALL_ROOT/python/bin/toolrig-documents" --help
+```
+
+Launch the existing Hub over stdio with an explicit consumer-approved root and
+the installed executable path:
+
+```sh
+TOOLRIG_DOCUMENTS_CLI="$INSTALL_ROOT/python/bin/toolrig-documents" \
+TOOLRIG_DOCUMENTS_ROOT="/absolute/path/to/consumer-approved-root" \
+node "$SOURCE_ROOT/hub/src/mcp.js"
+```
+
+An optional `TOOLRIG_DOCUMENT_ARTIFACT_DIR` selects the output directory for
+render and oversized-result artifacts. Each MCP client must launch this command
+as a stdio server with its own explicit root; omitting the root leaves document
+tools unadvertised. The executable and root are trusted launch configuration,
+not MCP arguments. Do not persist a synthetic fixture root as a consumer's
+default.
+
 | Variable | Meaning |
 | --- | --- |
 | TOOLRIG_DOCUMENTS_CLI | Absolute path to the trusted `toolrig-documents` executable |
@@ -83,6 +116,12 @@ opt-in per call and requires an explicit source eligibility attestation, a
 question, locators, at least 8000 extracted `o200k_base` tokens, and a known
 consumer window budget. Busy gateways, errors, invalid output, or an unknown
 budget leave the extracted source untouched and report a direct-source reason.
+The currently metadata-qualified `Qwen3.8-27B` route has 262144 input and
+output-token limits; other model aliases have no assumed limit and remain on
+direct source. Input preflight counts the serialized system/user messages.
+Consumer accounting includes the complete serialized MCP response, including
+the text and structured result wrappers. The caller must provide the actual
+consumer window and current usage; the adapter does not guess either value.
 The Qwen credential is sent only to the configured loopback endpoint and is
 removed from the document CLI child environment.
 

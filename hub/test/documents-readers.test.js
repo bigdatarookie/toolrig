@@ -51,6 +51,39 @@ test('Qwen fallback retains direct extracted result and successful compaction ke
   assert.deepEqual(compacted.source_refs, [{ page: 8 }]);
 });
 
+test('Qwen budget builder serializes the complete MCP result envelope including receipt and wrapper fields', async () => {
+  let measuredEnvelope;
+  const original = { ok: true, status: 'ok', operation: 'read',
+    source: { name: 'excerpt.txt', format: 'txt' }, data: { text: 'source text' },
+    source_refs: [{ page: 8 }], exact_facts: [{ field: 'id', value: '0007' }], warnings: ['bounded excerpt'] };
+  const adapter = new DocumentsAdapter({ root: '/tmp', qwenCompactor: {
+    compact: async input => {
+      const candidate = { status: 'compacted', reason: null, source_tokens_o200k: 9000,
+        inference_input_tokens_o200k: 9200, model_max_input_tokens: 262144,
+        output_tokens_o200k: 700, total_output_budget_o200k: 2000,
+        model_max_output_o200k: 900, model: 'Qwen3.8-27B', model_calls: 1, elapsed_ms: 12,
+        summary: { exact_facts: original.exact_facts,
+          facts: [{ text: 'A sourced fact', source_ids: ['s1'] }], limits: [], unknowns: [],
+          source_refs: original.source_refs } };
+      measuredEnvelope = input.buildConsumerEnvelope(candidate);
+      return { status: 'direct_source', reason: 'synthetic measurement only', model_calls: 0 };
+    },
+  } });
+  await adapter.compactReadResult(original, { qwen_eligible: true });
+  const expectedResult = { ...original,
+    data: { kind: 'question_directed_compaction', ...{
+      exact_facts: original.exact_facts,
+      facts: [{ text: 'A sourced fact', source_ids: ['s1'] }], limits: [], unknowns: [],
+      source_refs: original.source_refs,
+    } },
+    compaction: { status: 'compacted', reason: null, source_tokens_o200k: 9000,
+      inference_input_tokens_o200k: 9200, model_max_input_tokens: 262144,
+      output_tokens_o200k: 700, total_output_budget_o200k: 2000,
+      model_max_output_o200k: 900, model: 'Qwen3.8-27B', model_calls: 1, elapsed_ms: 12 } };
+  assert.deepEqual(measuredEnvelope.structuredContent, expectedResult);
+  assert.deepEqual(measuredEnvelope.content, [{ type: 'text', text: JSON.stringify(expectedResult) }]);
+});
+
 test('document read invokes Qwen only on explicit eligible compaction and preserves direct source on fallback', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'toolrig-document-qwen-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
