@@ -26,6 +26,15 @@ function errorResult(operation, source, code, message) {
   };
 }
 
+function toolResultEnvelope(result) {
+  return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+}
+
+function compactedReadResult(result, compaction) {
+  const { summary, ...metadata } = compaction;
+  return { ...result, data: { kind: 'question_directed_compaction', ...summary }, compaction: metadata };
+}
+
 function within(root, target) {
   const rel = relative(root, target);
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
@@ -144,10 +153,10 @@ export class DocumentsAdapter {
       consumerTokensUsed: args.consumer_tokens_used,
       consumerReserveTokens: args.consumer_reserve_tokens ?? 512,
       qwenEligible: args.qwen_eligible === true,
+      buildConsumerEnvelope: candidate => toolResultEnvelope(compactedReadResult(result, candidate)),
     });
     if (compaction.status !== 'compacted') return { ...result, compaction };
-    const { summary, ...metadata } = compaction;
-    return { ...result, data: { kind: 'question_directed_compaction', ...summary }, compaction: metadata };
+    return compactedReadResult(result, compaction);
   }
 
   async extractCsv(args) {
@@ -207,7 +216,7 @@ function expose(server, adapter, name, description, inputSchema, operation) {
     annotations: { readOnlyHint: false, destructiveHint: false },
   }, async args => {
     const result = await adapter.invoke(operation, args);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+    return toolResultEnvelope(result);
   });
 }
 
@@ -240,7 +249,7 @@ export function registerDocumentsTools(server, adapter) {
     annotations: { readOnlyHint: true, destructiveHint: false },
   }, async args => {
     const result = await adapter.extractCsv(args);
-    return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+    return toolResultEnvelope(result);
   });
 }
 

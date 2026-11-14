@@ -116,6 +116,12 @@ opt-in per call and requires an explicit source eligibility attestation, a
 question, locators, at least 8000 extracted `o200k_base` tokens, and a known
 consumer window budget. Busy gateways, errors, invalid output, or an unknown
 budget leave the extracted source untouched and report a direct-source reason.
+The currently metadata-qualified `Qwen3.8-27B` route has 262144 input and
+output-token limits; other model aliases have no assumed limit and remain on
+direct source. Input preflight counts the serialized system/user messages.
+Consumer accounting includes the complete serialized MCP response, including
+the text and structured result wrappers. The caller must provide the actual
+consumer window and current usage; the adapter does not guess either value.
 The Qwen credential is sent only to the configured loopback endpoint and is
 removed from the document CLI child environment.
 

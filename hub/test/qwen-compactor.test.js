@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { countO200kTokens, QwenCompactor } from '../src/qwen-compactor.js';
+import { configuredQwenCompactor, countO200kTokens, QwenCompactor } from '../src/qwen-compactor.js';
 
-const sourceText = Array.from({ length: 9000 }, (_, i) => `record${i} value observed`).join('\n');
+const sourceText = Array.from({ length: 1800 }, (_, i) => `record${i} value observed`).join('\n');
 const refs = [{ source: 'annual-report.pdf', page: 4, paragraph: 2 }];
 const goodSummary = JSON.stringify({
   facts: [{ text: 'Reported value is 12.0 USD.', source_ids: ['s1'] }],
@@ -12,11 +12,12 @@ const goodSummary = JSON.stringify({
   source_ids: ['s1'],
 });
 
-function compactorWith(complete) {
+function compactorWith(complete, limits = { input: 262_144, output: 262_144 }) {
   const calls = [];
   const compactor = new QwenCompactor({
     endpoint: 'http://127.0.0.1:18583/v1/chat/completions',
     healthUrl: 'http://127.0.0.1:18583/__alfarig_health', model: 'configured-local-model', apiKey: 'test-secret',
+    maxInputTokens: limits.input, maxOutputTokens: limits.output,
     fetchImpl: async (url, options = {}) => {
       calls.push({ url: String(url), options });
       if (String(url).includes('__alfarig_health')) return Response.json({ active_requests: 0, waiting_requests: 0 });
@@ -46,23 +47,125 @@ test('Qwen route counts o200k tokens and performs one no-thinking request within
   assert.equal(request.temperature, 0);
   assert.equal(calls[1].options.headers.authorization, 'Bearer test-secret');
   assert.doesNotMatch(JSON.stringify(result), /test-secret/);
+  assert.equal(result.model_max_input_tokens, 262_144);
+  assert.equal(result.inference_input_tokens_o200k,
+    countO200kTokens(JSON.stringify(request.messages)));
 });
 
 test('short, ineligible, unlocated, or unknown-budget source stays direct without gateway calls', async () => {
   const { compactor, calls } = compactorWith(goodSummary);
   const base = { question: 'Find the answer.', text: sourceText, sourceRefs: refs,
     consumerWindowTokens: 10_000, consumerTokensUsed: 100, qwenEligible: true };
+  const belowThreshold = await compactor.compact({ ...base, text: 'short' });
+  assert.equal(belowThreshold.status, 'direct_source');
+  assert.equal(belowThreshold.reason, 'below_8000_extracted_o200k_tokens');
+  assert.equal(belowThreshold.source_tokens_o200k, countO200kTokens('short'));
+  assert.equal(belowThreshold.model_calls, 0);
+
   for (const input of [
-    { ...base, text: 'short' },
     { ...base, qwenEligible: false },
     { ...base, sourceRefs: [] },
     { ...base, consumerWindowTokens: undefined },
+    { ...base, consumerWindowTokens: 0 },
+    { ...base, consumerTokensUsed: -1 },
   ]) {
     const result = await compactor.compact(input);
     assert.equal(result.status, 'direct_source');
     assert.equal(result.model_calls, 0);
   }
   assert.deepEqual(calls, []);
+});
+
+test('full serialized inference input is checked against the configured model input cap before health or inference', async () => {
+  const sourceTokens = countO200kTokens(sourceText);
+  const { compactor, calls } = compactorWith(goodSummary, { input: sourceTokens, output: 262_144 });
+  const result = await compactor.compact({ question: 'Q?', text: sourceText, sourceRefs: refs,
+    consumerWindowTokens: 100_000, consumerTokensUsed: 0, qwenEligible: true });
+  assert.equal(result.status, 'direct_source');
+  assert.equal(result.reason, 'qwen_input_exceeds_model_limit');
+  assert.ok(result.inference_input_tokens_o200k > sourceTokens);
+  assert.equal(result.model_max_input_tokens, sourceTokens);
+  assert.deepEqual(calls, []);
+});
+
+test('unknown or invalid model context caps use direct source without gateway calls', async () => {
+  for (const limits of [
+    { input: null, output: 262_144 },
+    { input: 262_144, output: null },
+    { input: 0, output: 262_144 },
+    { input: 262_144, output: -1 },
+  ]) {
+    const { compactor, calls } = compactorWith(goodSummary, limits);
+    const result = await compactor.compact({ question: 'Q?', text: sourceText, sourceRefs: refs,
+      consumerWindowTokens: 100_000, consumerTokensUsed: 0, qwenEligible: true });
+    assert.equal(result.status, 'direct_source');
+    assert.equal(result.reason, 'qwen_model_context_unknown');
+    assert.deepEqual(calls, []);
+  }
+});
+
+test('only the metadata-qualified Qwen model receives a configured context cap', async () => {
+  const base = { TOOLRIG_QWEN_API_KEY: 'synthetic-secret',
+    TOOLRIG_QWEN_API_URL: 'http://127.0.0.1:18583/v1/chat/completions',
+    TOOLRIG_QWEN_HEALTH_URL: 'http://127.0.0.1:18583/__alfarig_health' };
+  const configured = configuredQwenCompactor({ ...base, TOOLRIG_QWEN_MODEL: 'Qwen3.8-27B' });
+  assert.equal(configured.maxInputTokens, 262_144);
+  assert.equal(configured.maxOutputTokens, 262_144);
+  const unknown = configuredQwenCompactor({ ...base, TOOLRIG_QWEN_MODEL: 'unqualified-alias' }, async () => {
+    throw new Error('unknown model must not call the gateway');
+  });
+  const result = await unknown.compact({ question: 'Q?', text: sourceText, sourceRefs: refs,
+    consumerWindowTokens: 100_000, consumerTokensUsed: 0, qwenEligible: true });
+  assert.equal(result.reason, 'qwen_model_context_unknown');
+});
+
+test('exact complete MCP envelope fit is accepted; actual envelope overflow falls back to direct source', async () => {
+  const envelopeFor = result => ({
+    content: [{ type: 'text', text: JSON.stringify(result) }],
+    structuredContent: result,
+  });
+  const exactSummary = JSON.stringify({
+    facts: Array.from({ length: 12 }, (_, index) => ({
+      text: `Synthetic supported fact ${index} preserves a useful detail and its measured unit.`, source_ids: ['s1'],
+    })),
+    limits: Array.from({ length: 8 }, (_, index) => ({
+      text: `Synthetic coverage limit ${index} applies only to this located excerpt.`, source_ids: ['s1'],
+    })),
+    unknowns: Array.from({ length: 8 }, (_, index) => ({
+      question: `Which related source fact ${index} is not included in this excerpt?`, source_ids: ['s1'],
+    })),
+    source_ids: ['s1'],
+  });
+  const runAtBudget = async (budget, complete = exactSummary, envelopeBuilder = envelopeFor) => {
+    const { compactor } = compactorWith(complete);
+    const result = await compactor.compact({ question: 'Q?', text: sourceText, sourceRefs: refs,
+      exactFacts: [{ field: 'unit', value: 'USD' }], consumerWindowTokens: budget + 10_000,
+      consumerTokensUsed: 9_000, consumerReserveTokens: 1_000, qwenEligible: true,
+      buildConsumerEnvelope: envelopeBuilder,
+    });
+    return result;
+  };
+
+  let exactBudget = 10_000;
+  let exact;
+  for (let i = 0; i < 3; i += 1) {
+    exact = await runAtBudget(exactBudget);
+    assert.equal(exact.status, 'compacted');
+    const measured = countO200kTokens(JSON.stringify(envelopeFor(exact)));
+    if (measured === exactBudget) break;
+    exactBudget = measured;
+  }
+  assert.equal(exact.status, 'compacted');
+  assert.equal(exact.output_tokens_o200k, exactBudget);
+  assert.equal(countO200kTokens(JSON.stringify(envelopeFor(exact))), exactBudget);
+
+  const envelopeOverflow = JSON.stringify({
+    facts: [{ text: 'detail '.repeat(1_000), source_ids: ['s1'] }],
+    limits: [], unknowns: [], source_ids: ['s1'],
+  });
+  const overflow = await runAtBudget(exactBudget, envelopeOverflow);
+  assert.equal(overflow.status, 'direct_source');
+  assert.equal(overflow.reason, 'compactor_result_exceeds_consumer_budget');
 });
 
 test('busy gateway and malformed model output return direct-source fallback without retries', async () => {
@@ -113,7 +216,8 @@ test('Qwen health and inference requests reject redirects before following them'
   const healthUrl = `http://127.0.0.1:${healthGateway.address().port}/health`;
   t.after(() => new Promise(resolve => healthGateway.close(resolve)));
   const healthResult = await new QwenCompactor({ endpoint: `${collectorUrl}/chat`, healthUrl,
-    model: 'configured-local-model', apiKey: 'test-secret' }).compact({ question: 'Q?', text: sourceText,
+    model: 'configured-local-model', apiKey: 'test-secret', maxInputTokens: 262_144,
+    maxOutputTokens: 262_144 }).compact({ question: 'Q?', text: sourceText,
     sourceRefs: refs, consumerWindowTokens: 10_000, consumerTokensUsed: 100, qwenEligible: true });
   assert.equal(healthResult.status, 'direct_source');
   assert.equal(healthResult.reason, 'gateway_health_unavailable');
@@ -133,7 +237,8 @@ test('Qwen health and inference requests reject redirects before following them'
   const inferenceBase = `http://127.0.0.1:${inferenceGateway.address().port}`;
   t.after(() => new Promise(resolve => inferenceGateway.close(resolve)));
   const inferenceResult = await new QwenCompactor({ endpoint: `${inferenceBase}/chat`,
-    healthUrl: `${inferenceBase}/health`, model: 'configured-local-model', apiKey: 'test-secret' }).compact({
+    healthUrl: `${inferenceBase}/health`, model: 'configured-local-model', apiKey: 'test-secret',
+    maxInputTokens: 262_144, maxOutputTokens: 262_144 }).compact({
     question: 'Q?', text: sourceText, sourceRefs: refs, consumerWindowTokens: 10_000,
     consumerTokensUsed: 100, qwenEligible: true,
   });
