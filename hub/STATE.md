@@ -129,3 +129,69 @@ Response reduction is not measured whole-prompt/provider billing savings.
 Provider usage, setup/author/reviewer/Support model cost and amortization remain
 UNKNOWN unless independently measured. Native activity output can dominate a
 narrow work query. Prefer the existing consumer workflow if this is a net loss.
+
+## Managed standalone CLI install and rollback
+
+The selected managed target is `/Users/garry/.local/share/toolrig/state-v07`.
+Infrastructure owns deployment. The installer is source code, not an automatic
+refresh or an OpenRig runtime plugin. Existing direct source calls remain valid.
+Node24, Git and npm are required; npm needs the pinned zod package in its cache
+or registry access. No global PATH, profile, home, permissions, daemon or seat
+settings are edited. This install provides the CLI only; it does not register MCP.
+
+From the independently accepted installer checkout:
+
+```
+node scripts/toolrig-state-install.mjs install \
+  --root /Users/garry/.local/share/toolrig/state-v07 \
+  --source /Users/garry/Documents/git/toolrig-state-obligation-scope-v09 \
+  --revision a8f47e9ffdd5404dabd93c41e313129f8e6529a4
+node scripts/toolrig-state-install.mjs status --root /Users/garry/.local/share/toolrig/state-v07
+/Users/garry/.local/share/toolrig/state-v07/bin/toolrig-state --help
+```
+
+The exact full trusted/reviewed Git commit is the payload pin; source files are
+read with Git, not copied from potentially dirty working files. Six State source
+files are preserved byte-for-byte. Only the CLI dependency closure (zod) is
+installed from the source lock's exact version, registry URL and integrity,
+using `npm ci --ignore-scripts --omit=dev`. No other Hub dependencies/services are
+installed. An artifact entrypoint supplies local help and validates owner/ID
+schema without querying State, invoking `rig`, or creating a cursor.
+
+Layout: `artifacts/<full-source-sha>/install.json` records exact pin, source and
+all payload/dependency hashes, Node requirement/executable and install time.
+`bin/toolrig-state` is the stable launcher; `current` is a relative symlink to
+one complete verified artifact. Successful install/update checks help and all
+hashes before a same-directory atomic symlink rename selects the artifact.
+`status` checks the selection, complete file inventory, source/dependency hashes,
+launcher and local owner/ID help. The manifest is in the selected artifact, so
+manifest and current selection cannot disagree through a separate write.
+The root and its ancestors must be real directories (on macOS use `/private/tmp`
+rather than the `/tmp` alias for temporary roots). Unknown files, symlinks and
+inconsistent existing artifacts fail closed. A writer lock prevents concurrent
+updates. A stale lock after a killed process is an explicit recovery condition;
+inspect custody before removing it. Pre-commit failures keep the previous target;
+a killed process may leave an unselected stage or valid artifact, never a partly
+copied current artifact. No automatic garbage collection is provided.
+
+The install result returns `previous` and an explicit rollback revision. Restore
+that prior managed revision with:
+
+```
+node scripts/toolrig-state-install.mjs rollback --root /Users/garry/.local/share/toolrig/state-v07 --revision FULL_PREVIOUS_SHA
+```
+
+Rollback verifies the retained artifact and atomically selects it; it never
+fetches, rebuilds or deletes artifacts. The historical `a704eaf09c51` and
+`b7b13d784a7b` standalone directories are preserved and remain callable directly;
+they are not implicitly adopted as managed artifacts. Initial install has no
+previous managed selection. A corrupt active artifact blocks update/status; rollback can still restore a
+verified retained target without trusting the corrupt active payload. Corrupt
+artifacts are not silently repaired.
+The launcher pins the installer's absolute Node24 executable. A different Node
+path is an explicit launcher migration, not an unannounced overwrite.
+
+Installer tests use isolated temporary roots and Git fixtures, package failure,
+update/rollback and source/dependency tampering; no native State query is needed.
+Installation/readback is distinct from natural same-scope cursor use, steady
+adoption and paired savings, which require their existing consumer evidence.
