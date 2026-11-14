@@ -120,6 +120,47 @@
       "consumed_effect": "Cross-owner actual Support/Lead/Operator parent triage includes untagged Kernel obligation;preserved true live audit blockers and continued independent caller review rather than treating source acceptance as parent completion.",
       "status": "ACTUAL_INVOKED_CONSUMED;SELECTIVE_USE_NOT_WHOLESALE_REPLACEMENT",
       "limits": "Fixed tiny exact-ID native reads may be cheaper;no managed-install refresh/steady adoption/net savings claimed."
+    },
+    {
+      "id": "kernel.hourly-parent-custody",
+      "catalog_entry": "state-v07",
+      "caller": "operator-agent@kernel",
+      "caller_record_path": "/Users/garry/.openrig/shared-docs/rigs/kernel/state/operator/package-d-owner-state-consumer-20261114.md",
+      "receipt_sha256": "8c1eed96a3e950cddf249330672de9583141090c4bbe87e4a89f6fdb31f76106",
+      "support_direct_receipt_read": true,
+      "before": {
+        "invocation": "Separate native full global-parent/Lead reads for hourly custody decision,per Operator receipt."
+      },
+      "after": {
+        "source_ref": "a8f47e9ffdd5404dabd93c41e313129f8e6529a4",
+        "merge_ref": "67733a4b3e1f05eed847f087e3eeb460170a089e",
+        "reported_scope": {
+          "rig": "kernel",
+          "project": "toolrig",
+          "filter": "all",
+          "owners": [
+            "coordination-lead@toolrig",
+            "operator-agent@kernel"
+          ],
+          "ids": [
+            "qitem-toolrig-v09-d-inventory-lead-20261114",
+            "qitem-toolrig-package-d-global-20261114"
+          ]
+        },
+        "observedAt": "2026-11-14T11:30:10.951Z",
+        "status": "ok",
+        "coverage": "complete_for_bounded_sources;errors[];bothIDsobserved;non-atomic",
+        "cost": {
+          "native_calls": 5,
+          "native_response_bytes": 487090,
+          "elapsed_ms": 689,
+          "model_calls_in_tool": 0,
+          "paired_savings": "UNKNOWN"
+        }
+      },
+      "consumed_effect": "Retained actual migration owner and one existing review rather than duplicating/reassigning;current global parent/Lead blocker chain observed despite untagged parent. New audit dependency/details still read through targeted native commands;independent canary preflight/CI integration not gated by this migration.",
+      "status": "ACTUAL_SCOPED_PARENT_READ_REPLACEMENT_ON_THIS_OPERATION",
+      "limits": "Owner attested exact-scope real call+receipt directly read;Support did not replay Kernel call,forward private cursor or independently inspect Kernel runtime. Not wholesale/steady kernelD adoption."
     }
   ],
   "no_fit": [
@@ -157,12 +198,12 @@
     }
   ],
   "state_candidates": {
-    "status": "ACCEPTED_SOURCE_USED_BY_SUPPORT;EXTERNAL_DEFAULT_MIGRATION_NOT_COUNTED",
+    "status": "ACCEPTED_SOURCE_ACTUAL_SUPPORT_AND_KERNEL_USE;NO_WHOLESALE_DEFAULT_CLAIM",
     "source_task": "qitem-20261114103815-f542375eea5bb754",
     "accepted_ref": "a8f47e9ffdd5404dabd93c41e313129f8e6529a4",
     "support_effect": "See support.explicit-parent-triage",
     "DR": "Actual use,negative tiny-list fit;native retained",
-    "Operator": "Accepted invocation delivered for next natural need;receipt pending,not counted",
+    "Operator": "Natural11:30hourly read/replacement consumed;source receipt directly read;see kernel.hourly-parent-custody",
     "OpenTourDevOps": "No recurring current need;not counted"
   },
   "measurement": {
@@ -181,5 +222,13 @@
       "finding": "Local State evidence projector initially selected top-level tasks instead of baseline.tasks",
       "correction": "Read SAME saved raw response and corrected public projection;no additional native read,tool response remained correct,decision made from corrected data."
     }
-  ]
+  ],
+  "affected_review_correction": {
+    "finding": "MEDIUM:additionalNoteWritten asserted commit before confirmation when write outcome UNKNOWN",
+    "correction": "Executable diagnostic renamed writeAttempted;no mutation/reconcile logic change,UNKNOWN remains UNKNOWN",
+    "regression": "support-checkpoint-unknown.json",
+    "real_native_write_rerun": false,
+    "historical_receipts": "Unchanged;actual checkpoint34843 and prior sequential no-write repeat remain valid."
+  },
+  "review_scope_update": "Original three Support site receipts retained. Operator natural11:30receipt appended at owner request;one finding recheck remains same reviewer,not a new consumer/test wave."
 }

@@ -14,7 +14,7 @@ const marker = { operationId, phase: 'caller_migration_checkpoint',
     'platform-devops@opentour-rig:2026-11-14T10:50Z',
     'qitem-20261114103815-f542375eea5bb754'] };
 const note = 'toolrig-d/1 ' + JSON.stringify(marker);
-let additionalNoteWritten = false;
+let writeAttempted = false;
 let alreadyRecorded = false;
 const started = performance.now();
 const result = await writeThenReconcile(operationId, async () => {
@@ -22,7 +22,7 @@ const result = await writeThenReconcile(operationId, async () => {
   // A repeat of this caller reconciles its same checkpoint instead of appending it again.
   if (journal.some(row => row.transitionNote === note)) { alreadyRecorded = true; return before; }
   if (before.state !== 'in-progress') throw new Error('caller_task_not_in_progress');
-  additionalNoteWritten = true;
+  writeAttempted = true;
   return queue.note(qitem, marker);
 }, async () => {
   const journal = await queue.journal(qitem);
@@ -31,5 +31,5 @@ const result = await writeThenReconcile(operationId, async () => {
 });
 const receipt = compactReceipt(operationId, result, { outcome: 'checkpoint_recorded', before });
 console.log(JSON.stringify({ ...receipt, elapsedMs: performance.now() - started,
-  modelUsage: 'UNKNOWN', additionalNoteWritten, alreadyRecorded, mutationReplay: false }));
+  modelUsage: 'UNKNOWN', writeAttempted, alreadyRecorded, mutationReplay: false }));
 if (receipt.outcome === 'unknown') process.exitCode = 2;
