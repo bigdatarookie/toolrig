@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readlinkSync, existsSync, rmSync, realpathSync, symlinkSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readlinkSync, existsSync, rmSync, realpathSync, symlinkSync, chmodSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { manage, acceptedPin } from '../../scripts/toolrig-state-install.mjs';
 const repo=resolve(import.meta.dirname,'../..');
 const git=(args,cwd)=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
@@ -62,4 +63,38 @@ test('unknown root, launcher and selector resources are preserved',()=>{
   assert.equal(readFileSync(join(root,'bin/toolrig-state'),'utf8'),'owner launcher');
   const alias=join(temp,'alias');symlinkSync(root,alias);assert.throws(()=>manage({action:'install',root:alias,source:repo}),/directory_required/);
  }finally{rmSync(temp,{recursive:true,force:true});}
+});
+
+test('status refuses symlinked managed children before executing any artifact entrypoint',()=>{
+  for(const redirected of ['artifacts','bin']) {
+    const temp=realpathSync(mkdtempSync(join(tmpdir(),'state-status-symlink-'))),root=join(temp,'root');
+    try {
+      mkdirSync(root);const outside=join(temp,'outside');mkdirSync(outside);
+      const artifactParent=redirected==='artifacts'?outside:join(root,'artifacts');
+      mkdirSync(artifactParent,{recursive:true});
+      if(redirected==='artifacts')symlinkSync(outside,join(root,'artifacts'));
+      const dir=join(artifactParent,acceptedPin);mkdirSync(dir);
+      const marker=join(temp,'entry-executed');
+      const content={'entry.mjs':`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(marker)},'executed');console.log('--owner --id');`};
+      const sourceHashes={};
+      for(const f of ['hub/src/state-cli.js',...['native','cache','projection','tool','mcp'].map(n=>`hub/src/state/${n}.js`)]) {
+        content[f]='// synthetic fixture';sourceHashes[f]=createHash('sha256').update(content[f]).digest('hex');
+      }
+      for(const f of Object.keys(content)){mkdirSync(resolve(join(dir,f),'..'),{recursive:true});writeFileSync(join(dir,f),content[f]);}
+      const hashes={};
+      function digest(path,prefix=''){for(const item of readdirSync(path,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:1)){const rel=prefix+item.name;if(item.isDirectory())digest(join(path,item.name),rel+'/');else hashes[rel]=createHash('sha256').update(readFileSync(join(path,item.name))).digest('hex');}}
+      digest(dir);
+      writeFileSync(join(dir,'install.json'),JSON.stringify({schema:'toolrig.state-install/1',sourcePin:acceptedPin,nodeRequirement:'>=24 <25',hashes,sourceHashes}));
+      symlinkSync('artifacts/'+acceptedPin,join(root,'current'));
+      const bin=redirected==='bin'?outside:join(root,'bin');mkdirSync(bin,{recursive:true});
+      if(redirected==='bin')symlinkSync(outside,join(root,'bin'));
+      const quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
+      writeFileSync(join(bin,'toolrig-state'),'#!/bin/sh\nexec '+quote(process.execPath)+' '+quote(join(root,'current/entry.mjs'))+' "$@"\n',{mode:0o755});
+      let error;try{manage({action:'status',root});}catch(e){error=e;}
+      assert.equal(existsSync(marker),false,'must reject '+redirected+' before executing entrypoint');
+      assert.match(error?.message??'',/directory_required/);
+      assert.equal(readlinkSync(join(root,'current')),'artifacts/'+acceptedPin);
+      assert.ok(existsSync(join(dir,'install.json')),'outside files must remain intact');
+    }finally{rmSync(temp,{recursive:true,force:true});}
+  }
 });

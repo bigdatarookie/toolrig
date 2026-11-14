@@ -20,6 +20,14 @@ function safeRoot(root) {
   let p=root;
   for(;;) { if(existsSync(p))realDirectory(p);if(p===dirname(p))break;p=dirname(p); }
 }
+function safeManagedChildren(root) {
+  // Check intermediate children before selected() can follow current and run help.
+  for(const name of ['artifacts','bin']) {
+    const path=join(root,name);
+    try{lstatSync(path);}catch(e){if(e.code==='ENOENT')continue;throw e;}
+    realDirectory(path);
+  }
+}
 function inventory(dir,prefix='') {
   const out={};
   for(const n of readdirSync(join(dir,prefix)).sort()) {
@@ -61,7 +69,7 @@ function checkLauncher(root) {
 }
 export function manage({action,root,source,revision=acceptedPin}) {
   if(Number(process.versions.node.split('.')[0])!==24)throw Error('node24_required');
-  root=resolve(root);safeRoot(root);
+  root=resolve(root);safeRoot(root);safeManagedChildren(root);
   if(action==='status') {const pin=selected(root);if(!pin)throw Error('no_managed_selection');checkLauncher(root);return {selected:pin,launcher:join(root,'bin','toolrig-state'),manifest:verify(root,pin)};}
   if(!['install','rollback'].includes(action))throw Error('action_must_be_install_status_rollback');
   mkdirSync(root,{recursive:true});safeRoot(root);
