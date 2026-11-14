@@ -190,6 +190,11 @@ function logFindings(text, { url, truncated }) {
   const candidates = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = redact(lines[index]).trim();
+    // Test names often include words such as "failure" even when the test passed.
+    // Ignore explicit pass markers so they cannot consume the bounded finding slots
+    // before a real exception later in the same job log.
+    const tapFailureMarker = /(?:^|\s)not\s+ok\s+\d+\b/i.test(line);
+    if (/(?:^|\s)[✔✓]\s/.test(line) || (!tapFailureMarker && /(?:^|\s)ok\s+\d+\b/i.test(line))) continue;
     if (!line || !/(error|failed|failure|exception|traceback|fatal|assertion|not ok\s+\d+|npm ERR!|exit code [1-9])/i.test(line)) continue;
     const sourceRef = { url, ...(truncated ? {} : { line: index + 1 }) };
     candidates.push(makeFinding(line, sourceRef, 'job_log'));
