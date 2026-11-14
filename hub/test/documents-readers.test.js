@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DocumentsAdapter } from '../src/documents.js';
@@ -31,6 +31,24 @@ test('document CSV adapter rejects invalid UTF-8 rather than replacing exact sou
   const result = await new DocumentsAdapter({ root }).extractCsv({ path: file });
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'invalid_utf8');
+});
+
+test('document adapter rejects outside-root Markdown before invoking the CLI', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'toolrig-markdown-reader-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const root = join(dir, 'documents'); await mkdir(root);
+  const file = join(root, 'notes.md');
+  await writeFile(file, '# Exact source\n');
+  const outside = join(dir, 'outside.md'); await writeFile(outside, 'outside');
+  const marker = join(dir, 'cli-was-invoked');
+  const cli = join(dir, 'documents-cli');
+  await writeFile(cli, `#!/usr/bin/env node\nimport { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'invoked');\nconsole.log(JSON.stringify({ok:true}));\n`, { mode: 0o700 });
+
+  const adapter = new DocumentsAdapter({ command: cli, root });
+  const rejected = await adapter.invoke('read', { path: outside });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.error.code, 'path_outside_configured_root');
+  await assert.rejects(access(marker));
 });
 
 test('Qwen fallback retains direct extracted result and successful compaction keeps source references', async () => {

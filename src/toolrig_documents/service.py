@@ -27,10 +27,11 @@ MAX_CELLS = 5_000
 MAX_OUTPUT_BYTES = 16_000
 MAX_PREVIEW_CHARS = 8_000
 MAX_INPUT_BYTES = 100 * 1024 * 1024
+MAX_TEXT_BYTES = 1024 * 1024
 MAX_RENDER_SIDE_PIXELS = 10_000
 MAX_RENDER_PIXELS = 10_000_000
 MAX_RENDER_ARTIFACT_BYTES = 40 * 1024 * 1024
-SUPPORTED = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".docx", ".xlsx", ".csv"}
+SUPPORTED = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".docx", ".xlsx", ".csv", ".md", ".txt"}
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 
@@ -367,6 +368,22 @@ def _csv_rows(source: Path, row_range: str | None) -> tuple[list[list[str]], lis
     return rows, refs
 
 
+def _plain_text(source: Path) -> tuple[str, list[dict]]:
+    try:
+        with source.open("rb") as handle:
+            payload = handle.read(MAX_TEXT_BYTES + 1)
+    except OSError:
+        raise DocumentError("read_failed", "Text document could not be read.")
+    if len(payload) > MAX_TEXT_BYTES:
+        raise DocumentError("input_too_large", f"Text documents larger than {MAX_TEXT_BYTES // (1024 * 1024)} MiB are not supported.")
+    try:
+        text = payload.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        raise DocumentError("encoding_unsupported", "Text documents must use valid UTF-8 encoding.")
+    line_count = max(1, len(text.splitlines()))
+    return text, [{"line_start": 1, "line_end": line_count}]
+
+
 def inspect_document(path: str | Path) -> dict:
     operation = "inspect"
     try:
@@ -395,6 +412,8 @@ def inspect_document(path: str | Path) -> dict:
         elif suffix == ".csv":
             details["encoding"] = "UTF-8 (BOM accepted)"
             details["delimiter"] = ","
+        elif suffix in {".md", ".txt"}:
+            details["encoding"] = "UTF-8"
         return _result(operation, source, details, warnings=warnings)
     except DocumentError as exc:
         return _error(operation, path, exc.code, str(exc))
@@ -452,6 +471,9 @@ def read_document(path: str | Path, *, pages: str | None = None, sheet: str | No
         if suffix == ".csv":
             rows, refs = _csv_rows(source, row_range)
             return _result(operation, source, {"rows": rows}, refs=refs)
+        if suffix in {".md", ".txt"}:
+            text, refs = _plain_text(source)
+            return _result(operation, source, {"text": text}, refs=refs)
         raise DocumentError("unsupported_format", f"Read is not supported for '{suffix}'.")
     except DocumentError as exc:
         return _error(operation, path, exc.code, str(exc))

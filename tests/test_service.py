@@ -159,13 +159,45 @@ def test_original_files_remain_byte_identical():
 
 
 def test_unsupported_and_missing_path_are_structured():
-    unsupported = inspect_document(FIXTURES / "unrecognized.txt")
+    unsupported = inspect_document(FIXTURES / "unrecognized.bin")
     assert unsupported["ok"] is False
     assert unsupported["status"] == "unsupported"
     assert unsupported["error"]["code"] == "unsupported_format"
     missing = read_document(FIXTURES / "missing.pdf")
     assert missing["ok"] is False
     assert missing["error"]["code"] == "file_not_found"
+
+
+def test_cli_reads_markdown_and_text_exactly_and_rejects_invalid_or_oversized_text(tmp_path):
+    markdown = tmp_path / "notes.md"
+    markdown_text = "# Exact source\r\n\r\nKeep 0007 and 1.20 unchanged.\r\n"
+    markdown.write_bytes(markdown_text.encode("utf-8"))
+    plain = tmp_path / "notes.txt"
+    plain_text = "first line\nsecond line\n"
+    plain.write_bytes(plain_text.encode("utf-8"))
+    invalid = tmp_path / "invalid.md"
+    invalid.write_bytes(b"valid prefix\n\xff")
+    oversized = tmp_path / "oversized.txt"
+    oversized.write_bytes(b"x" * (service.MAX_TEXT_BYTES + 1))
+
+    def cli_read(path: Path) -> dict:
+        result = subprocess.run(
+            [sys.executable, "-m", "toolrig_documents.cli", "read", str(path)],
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode in {0, 2}
+        return json.loads(result.stdout)
+
+    md_result = cli_read(markdown)
+    assert md_result["ok"] is True
+    assert md_result["data"]["text"] == markdown_text
+    assert md_result["source_refs"] == [{"line_start": 1, "line_end": 3}]
+    text_result = cli_read(plain)
+    assert text_result["ok"] is True
+    assert text_result["data"]["text"] == plain_text
+    assert text_result["source_refs"] == [{"line_start": 1, "line_end": 2}]
+    assert cli_read(invalid)["error"]["code"] == "encoding_unsupported"
+    assert cli_read(oversized)["error"]["code"] == "input_too_large"
 
 
 def test_render_reports_native_dependency_state():
